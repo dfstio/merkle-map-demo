@@ -1,5 +1,5 @@
 {
-  "name": "he-contract-demo",
+  "name": "merkle-map-demo",
   "version": "1.0",
   "author": "DFST",
   "license": "Apache-2.0",
@@ -11,7 +11,7 @@
   },
   "scripts": {
     "compile": "rm -rf dist && tsc",
-    "build": "rm -rf dist && tsc && rm he-contract-demo.zip && 7z a -tzip -r -stl -m0=Copy he-contract-demo.zip dist package.json node_modules",
+    "build": "rm -rf dist && tsc && rm merkle-map-demo.zip && 7z a -tzip -r -stl -m0=Copy he-contract-demo.zip dist package.json node_modules",
     "test": "jest",
     "coverage": "jest --coverage"
   },

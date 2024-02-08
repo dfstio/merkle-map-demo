@@ -9,7 +9,7 @@ import {
   fetchAccount,
 } from "o1js";
 import { initBlockchain, fee, accountBalanceMina } from "zkcloudworker";
-import { MapContract } from "../src/contract";}
+import { MapContract } from "../src/mapcontract";}
 
 const useLocalBlockchain = false;
 
