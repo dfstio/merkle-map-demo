@@ -10,10 +10,13 @@ import {
   Struct,
   PublicKey,
   UInt64,
+  UInt32,
   Poseidon,
+  Signature,
 } from "o1js";
 
-import { Storage } from "minanft";
+import { Storage } from "./storage";
+import { MapUpdateProof } from "./update";
 
 export const BATCH_SIZE = 3;
 
@@ -24,6 +27,16 @@ export class MapElement extends Struct({
   hash: Field, // Poseidon hash of [name, ...address.toFields()]
   storage: Storage,
 }) {
+  toFields(): Field[] {
+    return [
+      this.name,
+      ...this.address.toFields(),
+      this.addressHash,
+      this.hash,
+      ...this.storage.toFields(),
+    ];
+  }
+
   static fromFields(fields: Field[]): MapElement {
     return new MapElement({
       name: fields[0],
@@ -36,7 +49,7 @@ export class MapElement extends Struct({
 }
 
 export class ReducerState extends Struct({
-  count: UInt64,
+  count: UInt32,
   hash: Field,
 }) {
   static assertEquals(a: ReducerState, b: ReducerState) {
@@ -49,6 +62,7 @@ export class MapContract extends SmartContract {
   @state(Field) root = State<Field>();
   @state(UInt64) count = State<UInt64>();
   @state(Field) actionState = State<Field>();
+  @state(PublicKey) owner = State<PublicKey>();
 
   deploy(args: DeployArgs) {
     super.deploy(args);
@@ -68,7 +82,12 @@ export class MapContract extends SmartContract {
     reduce: ReducerState,
   };
 
-  @method add(name: Field, address: PublicKey, storage: Storage) {
+  @method add(
+    name: Field,
+    address: PublicKey,
+    storage: Storage,
+    signature: Signature
+  ) {
     const addressHash = Poseidon.hash(address.toFields());
     const hash = Poseidon.hash([name, ...address.toFields()]);
     const element = new MapElement({
@@ -78,11 +97,17 @@ export class MapContract extends SmartContract {
       hash,
       storage,
     });
+    signature.verify(address, element.toFields()).assertEquals(true);
     this.reducer.dispatch(element);
     this.emitEvent("add", element);
   }
 
-  @method update(name: Field, address: PublicKey, storage: Storage) {
+  @method update(
+    name: Field,
+    address: PublicKey,
+    storage: Storage,
+    signature: Signature
+  ) {
     const addressHash = Poseidon.hash(address.toFields());
     const hash = Poseidon.hash([name, ...address.toFields()]);
     const element = new MapElement({
@@ -92,14 +117,24 @@ export class MapContract extends SmartContract {
       hash,
       storage,
     });
+    signature.verify(address, element.toFields()).assertEquals(true);
     this.emitEvent("update", element);
   }
 
   @method reduce(
     startActionState: Field,
     endActionState: Field,
-    reducerState: ReducerState
+    reducerState: ReducerState,
+    proof: MapUpdateProof,
+    signature: Signature
   ) {
+    const owner = this.owner.getAndRequireEquals();
+    signature.verify(owner, proof.publicInput.toFields()).assertEquals(true);
+    proof.verify();
+    proof.publicInput.oldRoot.assertEquals(this.root.getAndRequireEquals());
+    proof.publicInput.hash.assertEquals(reducerState.hash);
+    proof.publicInput.count.assertEquals(reducerState.count.toFields()[0]);
+
     const actionState = this.actionState.getAndRequireEquals();
     actionState.assertEquals(startActionState);
     const count = this.count.getAndRequireEquals();
@@ -110,7 +145,7 @@ export class MapContract extends SmartContract {
     });
 
     let elementsState: ReducerState = new ReducerState({
-      count: UInt64.from(0),
+      count: UInt32.from(0),
       hash: Field(0),
     });
 
@@ -120,7 +155,7 @@ export class MapContract extends SmartContract {
         ReducerState,
         (state: ReducerState, action: MapElement) => {
           return new ReducerState({
-            count: state.count.add(UInt64.from(1)),
+            count: state.count.add(UInt32.from(1)),
             hash: state.hash.add(action.hash),
           });
         },
@@ -134,8 +169,15 @@ export class MapContract extends SmartContract {
         }
       );
     ReducerState.assertEquals(newReducerState, reducerState);
-    this.count.set(count.add(newReducerState.count));
+    this.count.set(count.add(newReducerState.count.toUInt64()));
     this.actionState.set(newActionState);
+    this.root.set(proof.publicInput.newRoot);
     this.emitEvent("reduce", reducerState);
+  }
+
+  @method setOwner(newOwner: PublicKey, signature: Signature) {
+    const owner = this.owner.getAndRequireEquals();
+    signature.verify(owner, newOwner.toFields()).assertEquals(true);
+    this.owner.set(newOwner);
   }
 }

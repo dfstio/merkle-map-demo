@@ -8,17 +8,29 @@ import {
   Poseidon,
   MerkleMap,
   UInt64,
+  UInt32,
+  Signature,
+  verify,
+  VerificationKey,
 } from "o1js";
 import {
   MapContract,
   MapElement,
   ReducerState,
   BATCH_SIZE,
-} from "../src/contract";
-import { Memory } from "zkcloudworker";
-import { Storage } from "minanft";
+} from "../src/mapcontract";
+import {
+  MapUpdateProof,
+  MapTransition,
+  MapUpdate,
+  MapUpdateData,
+} from "../src/update";
+import { Storage } from "../src/storage";
+import { Memory, sleep } from "zkcloudworker";
 
-const ELEMENTS_COUNT = 10;
+const ELEMENTS_COUNT = 8;
+const map = new MerkleMap();
+let verificationKey: VerificationKey | undefined = undefined;
 
 describe("Contract", () => {
   const Local = Mina.LocalBlockchain();
@@ -28,26 +40,37 @@ describe("Contract", () => {
   const privateKey = PrivateKey.random();
   const publicKey = privateKey.toPublicKey();
   const zkApp = new MapContract(publicKey);
+  const userPrivateKeys: PrivateKey[] = [];
   const elements: MapElement[] = [];
   const storage = new Storage({ hashString: [Field(1), Field(2)] });
+  const ownerPrivateKey = PrivateKey.random(); // owner of the contract
+  const ownerPublicKey = ownerPrivateKey.toPublicKey();
 
   it(`should compile contract`, async () => {
-    console.time("compiled");
+    console.log("Compiling contracts...");
+    console.time("MapUpdate compiled");
+    verificationKey = (await MapUpdate.compile()).verificationKey;
+    console.timeEnd("MapUpdate compiled");
+    console.time("MapContract compiled");
     await MapContract.compile();
+    console.timeEnd("MapContract compiled");
+    console.time("methods analyzed");
     const methods = MapContract.analyzeMethods();
-    console.timeEnd("compiled");
+    console.timeEnd("methods analyzed");
 
     console.log(`method size for a contract with batch size: ${BATCH_SIZE}`);
     console.log("add rows:", methods["add"].rows);
     console.log("update rows:", methods["update"].rows);
     console.log("reduce rows:", methods["update"].rows);
+    console.log("setOwner rows:", methods["setOwner"].rows);
     Memory.info(`should compile the SmartContract`);
   });
 
   it("should generate elements", () => {
     for (let i = 0; i < ELEMENTS_COUNT; i++) {
-      const name = Field.random();
-      const address = PrivateKey.random().toPublicKey();
+      const name = Field(i + 1);
+      const userPrivateKey = PrivateKey.random();
+      const address = userPrivateKey.toPublicKey();
       const element = new MapElement({
         name,
         address,
@@ -56,11 +79,11 @@ describe("Contract", () => {
         storage,
       });
       elements.push(element);
+      userPrivateKeys.push(userPrivateKey);
     }
   });
 
   it("should deploy the contract", async () => {
-    const map = new MerkleMap();
     const root = map.getRoot();
     const tx = await Mina.transaction({ sender }, () => {
       AccountUpdate.fundNewAccount(sender);
@@ -68,19 +91,31 @@ describe("Contract", () => {
       zkApp.root.set(root);
       zkApp.actionState.set(Reducer.initialActionState);
       zkApp.count.set(UInt64.from(0));
+      zkApp.owner.set(ownerPublicKey);
     });
     await tx.sign([deployer, privateKey]).send();
     Memory.info(`should deploy the contract`);
   });
 
   it("should send the elements", async () => {
-    for (const element of elements) {
+    console.time("send elements");
+    for (let i = 0; i < ELEMENTS_COUNT; i++) {
+      const signature = Signature.create(
+        userPrivateKeys[i],
+        elements[i].toFields()
+      );
       const tx = await Mina.transaction({ sender }, () => {
-        zkApp.add(element.name, element.address, element.storage);
+        zkApp.add(
+          elements[i].name,
+          elements[i].address,
+          elements[i].storage,
+          signature
+        );
       });
       await tx.prove();
       await tx.sign([deployer]).send();
     }
+    console.timeEnd("send elements");
     Memory.info(`should send the elements`);
   });
 
@@ -115,23 +150,40 @@ describe("Contract", () => {
     let startActionState: Field = zkApp.actionState.get();
     if (Array.isArray(actions)) length = Math.min(actions.length, BATCH_SIZE);
     while (length > 0) {
+      console.time("reduce");
       if (Array.isArray(actions)) {
         console.log("length", length);
         let hash: Field = Field(0);
+        const elements: MapElement[] = [];
         for (let i = 0; i < length; i++) {
           const element: MapElement = MapElement.fromFields(
             actions[i].actions[0].map((f: string) => Field.fromJSON(f))
           );
           hash = hash.add(element.hash);
+          elements.push(element);
         }
         const reducerState = new ReducerState({
-          count: UInt64.from(length),
+          count: UInt32.from(length),
           hash,
         });
         const endActionState: Field = Field.fromJSON(actions[length - 1].hash);
 
+        expect(verificationKey).toBeDefined();
+        if (verificationKey === undefined) return;
+        const proof: MapUpdateProof = await calculateProof(elements, true);
+        const signature = Signature.create(
+          ownerPrivateKey,
+          proof.publicInput.toFields()
+        );
+
         const tx = await Mina.transaction({ sender }, () => {
-          zkApp.reduce(startActionState, endActionState, reducerState);
+          zkApp.reduce(
+            startActionState,
+            endActionState,
+            reducerState,
+            proof,
+            signature
+          );
         });
         await tx.prove();
         await tx.sign([deployer]).send();
@@ -141,6 +193,72 @@ describe("Contract", () => {
       const actionStates = { fromActionState: startActionState };
       actions = await Mina.fetchActions(publicKey, actionStates);
       if (Array.isArray(actions)) length = Math.min(actions.length, BATCH_SIZE);
+      console.timeEnd("reduce");
     }
   });
 });
+
+async function calculateProof(
+  elements: MapElement[],
+  verbose: boolean = false
+): Promise<MapUpdateProof> {
+  console.log(`Calculating proofs for ${elements.length} elements...`);
+  if (verificationKey === undefined)
+    throw new Error("Verification key is not defined");
+
+  let updates: MapUpdateData[] = [];
+
+  for (const element of elements) {
+    const oldRoot = map.getRoot();
+    map.set(element.name, element.addressHash);
+    const newRoot = map.getRoot();
+    const update = new MapUpdateData({
+      oldRoot,
+      newRoot,
+      key: element.name,
+      oldValue: Field(0),
+      newValue: element.addressHash,
+      witness: map.getWitness(element.name),
+    });
+    updates.push(update);
+  }
+
+  let proofs: MapUpdateProof[] = [];
+  for (let i = 0; i < elements.length; i++) {
+    await sleep(100); // alow GC to run
+    const state = MapTransition.accept(updates[i], elements[i].address);
+    const proof = await MapUpdate.accept(
+      state,
+      updates[i],
+      elements[i].address
+    );
+    proofs.push(proof);
+    if (verbose) Memory.info(`Proof ${i + 1}/${elements.length} created`);
+  }
+
+  console.log("Merging proofs...");
+  let proof: MapUpdateProof = proofs[0];
+  for (let i = 1; i < proofs.length; i++) {
+    await sleep(100); // alow GC to run
+    const state = MapTransition.merge(proof.publicInput, proofs[i].publicInput);
+    let mergedProof: MapUpdateProof = await MapUpdate.merge(
+      state,
+      proof,
+      proofs[i]
+    );
+    proof = mergedProof;
+    if (verbose) Memory.info(`Proof ${i}/${proofs.length - 1} merged`);
+  }
+
+  const verificationResult: boolean = await verify(
+    proof.toJSON(),
+    verificationKey
+  );
+
+  console.log("Proof verification result:", verificationResult);
+  if (verificationResult === false) {
+    throw new Error("Proof verification error");
+  }
+
+  return proof;
+}
