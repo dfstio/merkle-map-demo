@@ -28,7 +28,8 @@ import {
 import { Storage } from "../src/storage";
 import { MapUpdateData, MapTransition } from "../src/update";
 
-const ELEMENTS_COUNT = 2;
+const ELEMENTS_COUNT = 5;
+
 const map = new MerkleMap();
 const userPrivateKeys: PrivateKey[] = [];
 const elements: MapElement[] = [];
@@ -36,7 +37,6 @@ const storage = new Storage({ hashString: [Field(1), Field(2)] });
 const ownerPrivateKey = PrivateKey.fromBase58(
   "EKFRg9MugtXvFPe4N6Au28kQyYx9txt4CVPgBPRYdv4wvbKBJpEy"
 ); // owner of the contract
-const ownerPublicKey = ownerPrivateKey.toPublicKey();
 let transactions: string[] = [];
 
 describe("Merkle map demo", () => {
@@ -52,9 +52,6 @@ describe("Merkle map demo", () => {
   const jobId: string[] = [];
   const hash: string[] = [];
   let calculateJobId = "";
-  let calculateHash = "";
-  let resetJobId = "";
-  let resetHash = "";
   const api = new zkCloudWorker(JWT);
   let initialValue = UInt64.from(0);
   initBlockchain("berkeley");
@@ -91,18 +88,17 @@ describe("Merkle map demo", () => {
         userPrivateKeys[i],
         elements[i].toFields()
       );
-      const args = [
-        "add",
-        contractAddress,
-        elements[i].name.toJSON(),
-        elements[i].address.toBase58(),
-        signature.toBase58(),
-        ...elements[i].storage.toFields().map((f) => f.toJSON()),
-      ];
+      const tx = {
+        name: elements[i].name.toJSON(),
+        address: elements[i].address.toBase58(),
+        signature: signature.toBase58(),
+        storage: [...elements[i].storage.toFields().map((f) => f.toJSON())],
+      };
+      const args = ["add", contractAddress];
       const apiresult = await api.createJob({
         name: "nameservice",
         task: "send",
-        transactions: [],
+        transactions: [JSON.stringify(tx, null, 2)],
         args,
         developer: "@staketab",
       });
@@ -240,22 +236,23 @@ describe("Merkle map demo", () => {
         console.log("proof", proof);
         expect(proof).toBeDefined();
         if (proof === undefined) return;
-
-        args = [
-          "reduce",
-          contractAddress,
-          startActionState.toJSON(),
-          endActionState.toJSON(),
-          reducerState.count.toJSON(),
-          reducerState.hash.toJSON(),
+        const tx = {
+          startActionState: startActionState.toJSON(),
+          endActionState: endActionState.toJSON(),
+          reducerState: {
+            count: reducerState.count.toJSON(),
+            hash: reducerState.hash.toJSON(),
+          },
           proof,
-          signature.toBase58(),
-        ];
+          signature: signature.toBase58(),
+        };
+
+        args = ["reduce", contractAddress];
 
         apiresult = await api.createJob({
           name: "nameservice",
           task: "send",
-          transactions: [],
+          transactions: [JSON.stringify(tx, null, 2)],
           args,
           developer: "@staketab",
         });
@@ -315,17 +312,16 @@ describe("Merkle map demo", () => {
     const map = new MerkleMap();
     const root = map.getRoot();
     const signature = Signature.create(ownerPrivateKey, [root]);
-    const args = [
-      "reset",
-      contractAddress,
-      root.toJSON(),
-      signature.toBase58(),
-    ];
+    const tx = {
+      root: root.toJSON(),
+      signature: signature.toBase58(),
+    };
+    const args = ["setRoot", contractAddress];
 
     const apiresult = await api.createJob({
       name: "nameservice",
       task: "send",
-      transactions: [],
+      transactions: [JSON.stringify(tx, null, 2)],
       args,
       developer: "@staketab",
     });

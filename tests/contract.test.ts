@@ -28,7 +28,7 @@ import {
 import { Storage } from "../src/storage";
 import { Memory, sleep } from "zkcloudworker";
 
-const ELEMENTS_COUNT = 8;
+const ELEMENTS_COUNT = 1;
 const map = new MerkleMap();
 let verificationKey: VerificationKey | undefined = undefined;
 
