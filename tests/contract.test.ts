@@ -47,6 +47,26 @@ describe("Contract", () => {
   const ownerPublicKey = ownerPrivateKey.toPublicKey();
 
   it(`should compile contract`, async () => {
+    console.time("methods analyzed");
+    const methods = MapContract.analyzeMethods();
+    console.timeEnd("methods analyzed");
+    //console.log("methods", methods);
+    // calculate the size of the contract - the sum or rows for each method
+    const size = Object.values(methods).reduce(
+      (acc, method) => acc + method.rows,
+      0
+    );
+    const maxRows = 2 ** 16;
+    // calculate percentage rounded to 0 decimal places
+    const percentage = Math.round((size / maxRows) * 100);
+
+    console.log(
+      `method's total size for a contract with batch size ${BATCH_SIZE} is ${size} rows (${percentage}% of max ${maxRows} rows)`
+    );
+    console.log("add rows:", methods["add"].rows);
+    console.log("update rows:", methods["update"].rows);
+    console.log("reduce rows:", methods["reduce"].rows);
+    console.log("setOwner rows:", methods["setOwner"].rows);
     console.log("Compiling contracts...");
     console.time("MapUpdate compiled");
     verificationKey = (await MapUpdate.compile()).verificationKey;
@@ -54,15 +74,6 @@ describe("Contract", () => {
     console.time("MapContract compiled");
     await MapContract.compile();
     console.timeEnd("MapContract compiled");
-    console.time("methods analyzed");
-    const methods = MapContract.analyzeMethods();
-    console.timeEnd("methods analyzed");
-
-    console.log(`method size for a contract with batch size: ${BATCH_SIZE}`);
-    console.log("add rows:", methods["add"].rows);
-    console.log("update rows:", methods["update"].rows);
-    console.log("reduce rows:", methods["update"].rows);
-    console.log("setOwner rows:", methods["setOwner"].rows);
     Memory.info(`should compile the SmartContract`);
   });
 
