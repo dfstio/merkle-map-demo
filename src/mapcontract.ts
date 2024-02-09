@@ -59,6 +59,7 @@ export class ReducerState extends Struct({
 }
 
 export class MapContract extends SmartContract {
+  @state(Field) domain = State<Field>();
   @state(Field) root = State<Field>();
   @state(UInt64) count = State<UInt64>();
   @state(Field) actionState = State<Field>();
@@ -179,5 +180,12 @@ export class MapContract extends SmartContract {
     const owner = this.owner.getAndRequireEquals();
     signature.verify(owner, newOwner.toFields()).assertEquals(true);
     this.owner.set(newOwner);
+  }
+
+  // TODO: remove after debugging
+  @method setRoot(root: Field, signature: Signature) {
+    const owner = this.owner.getAndRequireEquals();
+    signature.verify(owner, [root]).assertEquals(true);
+    this.root.set(root);
   }
 }

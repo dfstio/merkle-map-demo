@@ -99,6 +99,7 @@ describe("Contract", () => {
     const tx = await Mina.transaction({ sender }, () => {
       AccountUpdate.fundNewAccount(sender);
       zkApp.deploy({});
+      zkApp.domain.set(Field(0));
       zkApp.root.set(root);
       zkApp.actionState.set(Reducer.initialActionState);
       zkApp.count.set(UInt64.from(0));
@@ -206,6 +207,20 @@ describe("Contract", () => {
       if (Array.isArray(actions)) length = Math.min(actions.length, BATCH_SIZE);
       console.timeEnd("reduce");
     }
+  });
+
+  it("should reset the root", async () => {
+    console.time("reset");
+    const map = new MerkleMap();
+    const root = map.getRoot();
+    const signature = Signature.create(ownerPrivateKey, [root]);
+    const tx = await Mina.transaction({ sender }, () => {
+      zkApp.setRoot(root, signature);
+    });
+    await tx.prove();
+    await tx.sign([deployer]).send();
+    console.timeEnd("reset");
+    Memory.info(`reset`);
   });
 });
 
