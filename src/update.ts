@@ -82,6 +82,7 @@ class MapTransition extends Struct({
   }
 
   static merge(transition1: MapTransition, transition2: MapTransition) {
+    transition1.newRoot.assertEquals(transition2.oldRoot);
     return new MapTransition({
       oldRoot: transition1.oldRoot,
       newRoot: transition2.newRoot,
