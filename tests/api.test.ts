@@ -66,7 +66,7 @@ describe("Merkle map demo", () => {
 
   it("should generate elements", () => {
     for (let i = 0; i < ELEMENTS_COUNT; i++) {
-      const name = Field(i + 1);
+      const name = Field.random();
       const userPrivateKey = PrivateKey.random();
       const address = userPrivateKey.toPublicKey();
       const element = new MapElement({
@@ -126,11 +126,10 @@ describe("Merkle map demo", () => {
       console.log("api call result", result);
       expect(result.success).toBe(true);
       if (result.success === false) return;
-      const result2 = JSON.parse(result.result.result);
-      expect(result2.success).toBe(true);
-      expect(result2.hash).toBeDefined();
-      if (result2.hash === undefined) return;
-      hash.push(result2.hash);
+      const hash = result.result.result;
+      expect(hash).toBeDefined();
+      if (hash === undefined) return;
+      hash.push(hash);
       i++;
     }
   });
@@ -229,11 +228,11 @@ describe("Merkle map demo", () => {
             endTime - startTime
           )} (${endTime - startTime} ms)`
         );
-        console.log("api call result", result);
+        //console.log("api call result", result);
         expect(result.success).toBe(true);
         if (result.success === false) return;
         const proof = result.result.result;
-        console.log("proof", proof);
+        //console.log("proof", proof);
         expect(proof).toBeDefined();
         if (proof === undefined) return;
         const tx = {
@@ -292,6 +291,7 @@ describe("Merkle map demo", () => {
         }
         console.timeEnd("reduce tx included into block");
       }
+      await fetchAccount(publicKey);
       startActionState = zkApp.actionState.get();
       const actionStates = { fromActionState: startActionState };
       actions = await Mina.fetchActions(publicKey, actionStates);
