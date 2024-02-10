@@ -67,15 +67,10 @@ class MapTransition extends Struct({
     });
   }
 
-  static reject(
-    oldRoot: Field,
-    newRoot: Field,
-    key: Field,
-    address: PublicKey
-  ) {
+  static reject(root: Field, key: Field, address: PublicKey) {
     return new MapTransition({
-      oldRoot: oldRoot,
-      newRoot: newRoot,
+      oldRoot: root,
+      newRoot: root,
       hash: Poseidon.hash([key, ...address.toFields()]),
       count: Field(1),
     });
@@ -127,21 +122,15 @@ const MapUpdate = ZkProgram({
     },
 
     reject: {
-      privateInputs: [Field, Field, Field, PublicKey],
+      privateInputs: [Field, Field, PublicKey],
 
       method(
         state: MapTransition,
-        oldRoot: Field,
-        newRoot: Field,
+        root: Field,
         key: Field,
         address: PublicKey
       ) {
-        const computedState = MapTransition.reject(
-          oldRoot,
-          newRoot,
-          key,
-          address
-        );
+        const computedState = MapTransition.reject(root, key, address);
         MapTransition.assertEquals(computedState, state);
       },
     },
