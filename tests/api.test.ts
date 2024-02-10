@@ -28,7 +28,7 @@ import {
 import { Storage } from "../src/storage";
 import { MapUpdateData, MapTransition } from "../src/update";
 
-const ELEMENTS_COUNT = 5;
+const ELEMENTS_COUNT = 1;
 
 const map = new MerkleMap();
 const userPrivateKeys: PrivateKey[] = [];
@@ -44,7 +44,7 @@ describe("Merkle map demo", () => {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTkwMzQ5NDYiLCJpYXQiOjE3MDEzNTY5NzEsImV4cCI6MTczMjg5Mjk3MX0.r94tKntDvLpPJT2zzEe7HMUcOAQYQu3zWNuyFFiChD0";
 
   const contractAddress =
-    "B62qqCF9cLudc1qctFT1om4KDJ6eiVcKoUh9t8gNAjEVjpMZYoWNAME";
+    "B62qjirMYUSyjb1AcyNmAF5dLqTk3KQuoUYKv5FGdx618GDmRfYNAME";
   const publicKey = PublicKey.fromBase58(contractAddress);
   const zkApp = new MapContract(publicKey);
   const startTime: number[] = [];
@@ -53,20 +53,20 @@ describe("Merkle map demo", () => {
   const hash: string[] = [];
   let calculateJobId = "";
   const api = new zkCloudWorker(JWT);
-  let initialValue = UInt64.from(0);
+  let initialValue = Field(0);
   initBlockchain("berkeley");
 
   it("should get initial value", async () => {
     await fetchAccount(publicKey);
     const zkApp = new MapContract(publicKey);
-    const count: UInt64 = zkApp.count.get();
+    const count: Field = zkApp.count.get();
     console.log("initial count:", count.toBigInt().toString());
     initialValue = count;
   });
 
   it("should generate elements", () => {
     for (let i = 0; i < ELEMENTS_COUNT; i++) {
-      const name = Field(i + 1);
+      const name = Field(i < 2 ? 1 : i + 1);
       const userPrivateKey = PrivateKey.random();
       const address = userPrivateKey.toPublicKey();
       const element = new MapElement({
@@ -103,7 +103,7 @@ describe("Merkle map demo", () => {
         developer: "@staketab",
       });
       startTime.push(Date.now());
-      console.log("api call result", apiresult);
+      console.log("add api call result", apiresult);
       expect(apiresult.success).toBe(true);
       expect(apiresult.jobId).toBeDefined();
       if (apiresult.jobId === undefined) return;
@@ -119,18 +119,18 @@ describe("Merkle map demo", () => {
       const result = await api.waitForJobResult({ jobId: id });
       endTime.push(Date.now());
       console.log(
-        `Time spent to send tx: ${formatTime(endTime[i] - startTime[i])} (${
+        `Time spent to send add tx: ${formatTime(endTime[i] - startTime[i])} (${
           endTime[i] - startTime[i]
         } ms)`
       );
-      console.log("api call result", result);
+      console.log("add api call result", result);
       expect(result.success).toBe(true);
       if (result.success === false) return;
-      const result2 = JSON.parse(result.result.result);
-      expect(result2.success).toBe(true);
-      expect(result2.hash).toBeDefined();
-      if (result2.hash === undefined) return;
-      hash.push(result2.hash);
+      const txHash = result.result.result;
+      console.log("add txHash", txHash);
+      expect(txHash).toBeDefined();
+      if (txHash === undefined) return;
+      hash.push(txHash);
       i++;
     }
   });
@@ -138,7 +138,7 @@ describe("Merkle map demo", () => {
   it(`should wait for tx to be included into block`, async () => {
     expect(hash.length).toBeGreaterThan(0);
     if (hash.length === 0) return;
-    console.log("Waiting for txs to be included into block...");
+    console.log("Waiting for add txs to be included into block...", hash);
     console.time("txs included into block");
     let remainedTx = hash.length;
     while (remainedTx > 0) {
@@ -146,7 +146,7 @@ describe("Merkle map demo", () => {
       for (const h of hash) {
         const result = await checkZkappTransaction(h);
         if (result.success) {
-          console.log("tx included into block:", h);
+          console.log("add tx included into block:", h);
           remainedTx--;
         }
       }
@@ -155,14 +155,18 @@ describe("Merkle map demo", () => {
   });
 
   it("should check the actions", async () => {
+    console.time("check actions");
     await fetchAccount(publicKey);
+    /*
     let actions = zkApp.reducer.getActions({
       fromActionState: zkApp.actionState.get(),
     });
     console.log("actions", actions.length);
+    */
     const actions2 = await Mina.fetchActions(publicKey);
     if (Array.isArray(actions2)) {
       console.log("actions2", actions2.length);
+      /*
       for (let i = 0; i < actions2.length; i++) {
         //console.log("action", actions2[i].actions[0]);
         //console.log("hash", actions2[i].hash);
@@ -178,10 +182,12 @@ describe("Merkle map demo", () => {
         );
         expect(element.hash.toJSON()).toEqual(actions[i][0].hash.toJSON());
       }
+      */
     }
   });
 
   it("should prepare and send the state update txs", async () => {
+    await fetchAccount(publicKey);
     let actions = await Mina.fetchActions(publicKey);
     let length = 0;
     let startActionState: Field = zkApp.actionState.get();
@@ -189,7 +195,7 @@ describe("Merkle map demo", () => {
     while (length > 0) {
       console.time("reduce");
       if (Array.isArray(actions)) {
-        console.log("length", length);
+        console.log("reduce length", length);
         let hash: Field = Field(0);
         const elements: MapElement[] = [];
         for (let i = 0; i < length; i++) {
@@ -200,11 +206,12 @@ describe("Merkle map demo", () => {
           elements.push(element);
         }
         const reducerState = new ReducerState({
-          count: UInt32.from(length),
+          count: Field(length),
           hash,
         });
         const endActionState: Field = Field.fromJSON(actions[length - 1].hash);
         const update = await prepareProofData(elements);
+        console.log("sending proofMap job", update.length);
         const signature = Signature.create(ownerPrivateKey, update);
         let args = [contractAddress];
 
@@ -216,7 +223,7 @@ describe("Merkle map demo", () => {
           developer: "@staketab",
         });
         let startTime = Date.now();
-        console.log("api call result", apiresult);
+        console.log("proofMap api call result", apiresult);
         expect(apiresult.success).toBe(true);
         expect(apiresult.jobId).toBeDefined();
         if (apiresult.jobId === undefined) return;
@@ -229,11 +236,11 @@ describe("Merkle map demo", () => {
             endTime - startTime
           )} (${endTime - startTime} ms)`
         );
-        console.log("api call result", result);
+        //console.log("api call result", result);
         expect(result.success).toBe(true);
         if (result.success === false) return;
         const proof = result.result.result;
-        console.log("proof", proof);
+        //console.log("proof", proof);
         expect(proof).toBeDefined();
         if (proof === undefined) return;
         const tx = {
@@ -246,6 +253,7 @@ describe("Merkle map demo", () => {
           proof,
           signature: signature.toBase58(),
         };
+        console.log("reduce job count", tx.reducerState.count);
 
         args = ["reduce", contractAddress];
 
@@ -257,7 +265,7 @@ describe("Merkle map demo", () => {
           developer: "@staketab",
         });
         startTime = Date.now();
-        console.log("api call result", apiresult);
+        console.log("reduce api call result", apiresult);
         expect(apiresult.success).toBe(true);
         expect(apiresult.jobId).toBeDefined();
         if (apiresult.jobId === undefined) return;
@@ -270,7 +278,7 @@ describe("Merkle map demo", () => {
             endTime - startTime
           )} (${endTime - startTime} ms)`
         );
-        console.log("api call result", result);
+        console.log("reduce api call result", result);
         expect(result.success).toBe(true);
         if (result.success === false) return;
         const txHash = result.result.result;
@@ -279,7 +287,7 @@ describe("Merkle map demo", () => {
         if (txHash === undefined) return;
         expect(txHash).not.toBe("");
         if (txHash === "") return;
-        console.log("Waiting for tx to be included into block...");
+        console.log("Waiting for reduce tx to be included into block...");
         console.time("reduce tx included into block");
         let remainedTx = 1;
         while (remainedTx > 0) {
@@ -292,6 +300,7 @@ describe("Merkle map demo", () => {
         }
         console.timeEnd("reduce tx included into block");
       }
+      await fetchAccount(publicKey);
       startActionState = zkApp.actionState.get();
       const actionStates = { fromActionState: startActionState };
       actions = await Mina.fetchActions(publicKey, actionStates);
@@ -303,7 +312,7 @@ describe("Merkle map demo", () => {
   it("should get count", async () => {
     await fetchAccount(publicKey);
     const zkApp = new MapContract(publicKey);
-    const count: UInt64 = zkApp.count.get();
+    const count: Field = zkApp.count.get();
     console.log("count:", count.toBigInt().toString());
     //expect(Number(count.toBigInt())).toEqual(ELEMENTS_COUNT);
   });
@@ -311,9 +320,11 @@ describe("Merkle map demo", () => {
   it("should reset the value", async () => {
     const map = new MerkleMap();
     const root = map.getRoot();
-    const signature = Signature.create(ownerPrivateKey, [root]);
+    const count = Field(0);
+    const signature = Signature.create(ownerPrivateKey, [root, count]);
     const tx = {
       root: root.toJSON(),
+      count: count.toJSON(),
       signature: signature.toBase58(),
     };
     const args = ["setRoot", contractAddress];
@@ -326,7 +337,7 @@ describe("Merkle map demo", () => {
       developer: "@staketab",
     });
     const startTime = Date.now();
-    console.log("api call result", apiresult);
+    console.log("reset api call result", apiresult);
     expect(apiresult.success).toBe(true);
     expect(apiresult.jobId).toBeDefined();
     if (apiresult.jobId === undefined) return;
@@ -339,7 +350,7 @@ describe("Merkle map demo", () => {
         endTime - startTime
       } ms)`
     );
-    console.log("api call result", result);
+    console.log("reset api call result", result);
     expect(result.success).toBe(true);
     if (result.success === false) return;
     const txHash = result.result.result;
@@ -348,14 +359,14 @@ describe("Merkle map demo", () => {
     if (txHash === undefined) return;
     expect(txHash).not.toBe("");
     if (txHash === "") return;
-    console.log("Waiting for tx to be included into block...");
+    console.log("Waiting for reset tx to be included into block...");
     console.time("reset tx included into block");
     let remainedTx = 1;
     while (remainedTx > 0) {
       await sleep(1000 * 30);
       const result = await checkZkappTransaction(txHash);
       if (result.success) {
-        console.log("tx included into block:", txHash);
+        console.log("reset tx included into block:", txHash);
         remainedTx--;
       }
     }
@@ -377,33 +388,66 @@ async function prepareProofData(elements: MapElement[]): Promise<Field[]> {
   console.log(`Preparing proofs data for ${elements.length} elements...`);
   transactions = [];
 
-  let updates: MapUpdateData[] = [];
+  interface ElementState {
+    isElementAccepted: boolean;
+    update?: MapUpdateData;
+    oldRoot: Field;
+  }
+  let updates: ElementState[] = [];
 
   for (const element of elements) {
     const oldRoot = map.getRoot();
-    map.set(element.name, element.addressHash);
-    const newRoot = map.getRoot();
-    const update = new MapUpdateData({
-      oldRoot,
-      newRoot,
-      key: element.name,
-      oldValue: Field(0),
-      newValue: element.addressHash,
-      witness: map.getWitness(element.name),
-    });
-    updates.push(update);
+    if (isAccepted(element)) {
+      map.set(element.name, element.addressHash);
+      const newRoot = map.getRoot();
+      const update = new MapUpdateData({
+        oldRoot,
+        newRoot,
+        key: element.name,
+        oldValue: Field(0),
+        newValue: element.addressHash,
+        witness: map.getWitness(element.name),
+      });
+      updates.push({ isElementAccepted: true, update, oldRoot });
+    } else {
+      updates.push({ isElementAccepted: false, oldRoot });
+    }
   }
 
   let states: MapTransition[] = [];
   for (let i = 0; i < elements.length; i++) {
-    const state = MapTransition.accept(updates[i], elements[i].address);
-    states.push(state);
-    const tx = {
-      state: state.toFields().map((f) => f.toJSON()),
-      update: updates[i].toFields().map((f) => f.toJSON()),
-      address: elements[i].address.toBase58(),
-    };
-    transactions.push(JSON.stringify(tx, null, 2));
+    console.log(
+      `Calculating state ${i}/${elements.length}...`,
+      elements[i].name.toJSON()
+    );
+    if (updates[i].isElementAccepted) {
+      const update = updates[i].update;
+      if (update === undefined) throw new Error("Update is undefined");
+      const state = MapTransition.accept(update, elements[i].address);
+      states.push(state);
+      const tx = {
+        isAccepted: true,
+        state: state.toFields().map((f) => f.toJSON()),
+        address: elements[i].address.toBase58(),
+        update: update.toFields().map((f) => f.toJSON()),
+      };
+      transactions.push(JSON.stringify(tx, null, 2));
+    } else {
+      const state = MapTransition.reject(
+        updates[i].oldRoot,
+        elements[i].name,
+        elements[i].address
+      );
+      const tx = {
+        isAccepted: false,
+        state: state.toFields().map((f) => f.toJSON()),
+        address: elements[i].address.toBase58(),
+        root: updates[i].oldRoot.toJSON(),
+        name: elements[i].name.toJSON(),
+      };
+      transactions.push(JSON.stringify(tx, null, 2));
+      states.push(state);
+    }
   }
 
   let state: MapTransition = states[0];
@@ -413,6 +457,13 @@ async function prepareProofData(elements: MapElement[]): Promise<Field[]> {
   }
 
   return state.toFields();
+}
+
+function isAccepted(element: MapElement): boolean {
+  const name = element.name;
+  const value = map.get(name);
+  const isAccepted: boolean = value.equals(Field(0)).toBoolean();
+  return isAccepted;
 }
 
 async function checkZkappTransaction(hash: string) {

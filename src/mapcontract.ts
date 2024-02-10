@@ -49,7 +49,7 @@ export class MapElement extends Struct({
 }
 
 export class ReducerState extends Struct({
-  count: UInt32,
+  count: Field,
   hash: Field,
 }) {
   static assertEquals(a: ReducerState, b: ReducerState) {
@@ -61,7 +61,7 @@ export class ReducerState extends Struct({
 export class MapContract extends SmartContract {
   @state(Field) domain = State<Field>();
   @state(Field) root = State<Field>();
-  @state(UInt64) count = State<UInt64>();
+  @state(Field) count = State<Field>();
   @state(Field) actionState = State<Field>();
   @state(PublicKey) owner = State<PublicKey>();
 
@@ -81,6 +81,7 @@ export class MapContract extends SmartContract {
     add: MapElement,
     update: MapElement,
     reduce: ReducerState,
+    bulkUpdate: Field,
   };
 
   @method add(
@@ -146,7 +147,7 @@ export class MapContract extends SmartContract {
     });
 
     let elementsState: ReducerState = new ReducerState({
-      count: UInt32.from(0),
+      count: Field(0),
       hash: Field(0),
     });
 
@@ -156,7 +157,7 @@ export class MapContract extends SmartContract {
         ReducerState,
         (state: ReducerState, action: MapElement) => {
           return new ReducerState({
-            count: state.count.add(UInt32.from(1)),
+            count: state.count.add(Field(1)),
             hash: state.hash.add(action.hash),
           });
         },
@@ -170,10 +171,22 @@ export class MapContract extends SmartContract {
         }
       );
     ReducerState.assertEquals(newReducerState, reducerState);
-    this.count.set(count.add(newReducerState.count.toUInt64()));
+    this.count.set(count.add(newReducerState.count));
     this.actionState.set(newActionState);
     this.root.set(proof.publicInput.newRoot);
     this.emitEvent("reduce", reducerState);
+  }
+
+  @method bulkUpdate(proof: MapUpdateProof, signature: Signature) {
+    const owner = this.owner.getAndRequireEquals();
+    signature.verify(owner, proof.publicInput.toFields()).assertEquals(true);
+    proof.verify();
+    proof.publicInput.oldRoot.assertEquals(this.root.getAndRequireEquals());
+
+    const count = this.count.getAndRequireEquals();
+    this.count.set(count.add(proof.publicInput.count));
+    this.root.set(proof.publicInput.newRoot);
+    this.emitEvent("bulkUpdate", proof.publicInput.count);
   }
 
   @method setOwner(newOwner: PublicKey, signature: Signature) {
@@ -183,9 +196,10 @@ export class MapContract extends SmartContract {
   }
 
   // TODO: remove after debugging
-  @method setRoot(root: Field, signature: Signature) {
+  @method setRoot(root: Field, count: Field, signature: Signature) {
     const owner = this.owner.getAndRequireEquals();
-    signature.verify(owner, [root]).assertEquals(true);
+    signature.verify(owner, [root, count]).assertEquals(true);
     this.root.set(root);
+    this.count.set(count);
   }
 }

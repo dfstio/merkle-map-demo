@@ -42,7 +42,7 @@ describe("Contract", () => {
     }
     const sender = deployer.toPublicKey();
     const privateKey = PrivateKey.fromBase58(
-      "EKEexFXfLfyY2i8v3CiBC56meVtjbCac7wMS6z6ez7NJDtTQJ7Lr"
+      "EKFS3ASxumPaqSj8jbToypjoraXGb4ZRV6kYUxjms3mwkFzU4qoZ"
     );
     const publicKey = privateKey.toPublicKey();
     const zkApp = new MapContract(publicKey);

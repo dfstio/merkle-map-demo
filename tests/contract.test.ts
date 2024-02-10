@@ -28,7 +28,7 @@ import {
 import { Storage } from "../src/storage";
 import { Memory, sleep } from "zkcloudworker";
 
-const ELEMENTS_COUNT = 1;
+const ELEMENTS_COUNT = 16;
 const map = new MerkleMap();
 let verificationKey: VerificationKey | undefined = undefined;
 
@@ -79,7 +79,7 @@ describe("Contract", () => {
 
   it("should generate elements", () => {
     for (let i = 0; i < ELEMENTS_COUNT; i++) {
-      const name = Field(i + 1);
+      const name = Field(i < 2 ? 1 : i + 1);
       const userPrivateKey = PrivateKey.random();
       const address = userPrivateKey.toPublicKey();
       const element = new MapElement({
@@ -102,7 +102,7 @@ describe("Contract", () => {
       zkApp.domain.set(Field(0));
       zkApp.root.set(root);
       zkApp.actionState.set(Reducer.initialActionState);
-      zkApp.count.set(UInt64.from(0));
+      zkApp.count.set(Field(0));
       zkApp.owner.set(ownerPublicKey);
     });
     await tx.sign([deployer, privateKey]).send();
@@ -175,7 +175,7 @@ describe("Contract", () => {
           elements.push(element);
         }
         const reducerState = new ReducerState({
-          count: UInt32.from(length),
+          count: Field(length),
           hash,
         });
         const endActionState: Field = Field.fromJSON(actions[length - 1].hash);
@@ -213,9 +213,9 @@ describe("Contract", () => {
     console.time("reset");
     const map = new MerkleMap();
     const root = map.getRoot();
-    const signature = Signature.create(ownerPrivateKey, [root]);
+    const signature = Signature.create(ownerPrivateKey, [root, Field(0)]);
     const tx = await Mina.transaction({ sender }, () => {
-      zkApp.setRoot(root, signature);
+      zkApp.setRoot(root, Field(0), signature);
     });
     await tx.prove();
     await tx.sign([deployer]).send();
@@ -232,32 +232,50 @@ async function calculateProof(
   if (verificationKey === undefined)
     throw new Error("Verification key is not defined");
 
-  let updates: MapUpdateData[] = [];
+  interface ElementState {
+    isElementAccepted: boolean;
+    update?: MapUpdateData;
+    oldRoot: Field;
+  }
+  let updates: ElementState[] = [];
 
   for (const element of elements) {
     const oldRoot = map.getRoot();
-    map.set(element.name, element.addressHash);
-    const newRoot = map.getRoot();
-    const update = new MapUpdateData({
-      oldRoot,
-      newRoot,
-      key: element.name,
-      oldValue: Field(0),
-      newValue: element.addressHash,
-      witness: map.getWitness(element.name),
-    });
-    updates.push(update);
+    if (isAccepted(element)) {
+      map.set(element.name, element.addressHash);
+      const newRoot = map.getRoot();
+      const update = new MapUpdateData({
+        oldRoot,
+        newRoot,
+        key: element.name,
+        oldValue: Field(0),
+        newValue: element.addressHash,
+        witness: map.getWitness(element.name),
+      });
+      updates.push({ isElementAccepted: true, update, oldRoot });
+    } else {
+      updates.push({ isElementAccepted: false, oldRoot });
+    }
   }
 
   let proofs: MapUpdateProof[] = [];
   for (let i = 0; i < elements.length; i++) {
     await sleep(100); // alow GC to run
-    const state = MapTransition.accept(updates[i], elements[i].address);
-    const proof = await MapUpdate.accept(
-      state,
-      updates[i],
-      elements[i].address
-    );
+    const state = updates[i].isElementAccepted
+      ? MapTransition.accept(updates[i].update!, elements[i].address)
+      : MapTransition.reject(
+          updates[i].oldRoot,
+          elements[i].name,
+          elements[i].address
+        );
+    const proof = updates[i].isElementAccepted
+      ? await MapUpdate.accept(state, updates[i].update!, elements[i].address)
+      : await MapUpdate.reject(
+          state,
+          updates[i].oldRoot,
+          elements[i].name,
+          elements[i].address
+        );
     proofs.push(proof);
     if (verbose) Memory.info(`Proof ${i + 1}/${elements.length} created`);
   }
@@ -276,6 +294,12 @@ async function calculateProof(
     if (verbose) Memory.info(`Proof ${i}/${proofs.length - 1} merged`);
   }
 
+  function isAccepted(element: MapElement): boolean {
+    const name = element.name;
+    const value = map.get(name);
+    const isAccepted: boolean = value.equals(Field(0)).toBoolean();
+    return isAccepted;
+  }
   const verificationResult: boolean = await verify(
     proof.toJSON(),
     verificationKey
