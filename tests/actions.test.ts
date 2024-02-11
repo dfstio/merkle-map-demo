@@ -56,28 +56,28 @@ describe("Actions", () => {
     } else throw new Error("actions is not an array");
   });
 
-  it("should get actions starting from startActionsState amd ending on lastActionState", async () => {
+  it("should get actions starting from startActionsState and ending on lastActionState", async () => {
     let actions = await Mina.fetchActions(publicKey, {
       fromActionState: startActionsState,
       endActionState: endActionState,
     });
     if (Array.isArray(actions)) {
       console.log(
-        "number of actions starting from startActionsState amd ending on lastActionState:",
+        "number of actions starting from startActionsState and ending on lastActionState:",
         actions.length
       );
       expect(actions.length).toBeGreaterThan(0);
     } else throw new Error("actions is not an array");
   });
 
-  it("should get actions starting from startActionsState amd ending on endActionState", async () => {
+  it("should get actions starting from startActionsState and ending on endActionState", async () => {
     let actions = await Mina.fetchActions(publicKey, {
       fromActionState: startActionsState,
       endActionState: endActionState,
     });
     if (Array.isArray(actions)) {
       console.log(
-        "number of actions starting from startActionsState amd ending on endActionState:",
+        "number of actions starting from startActionsState and ending on endActionState:",
         actions.length
       );
       expect(actions.length).toBeGreaterThan(0);
