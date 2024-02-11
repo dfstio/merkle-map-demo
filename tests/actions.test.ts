@@ -1,16 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
-import {
-  Field,
-  PrivateKey,
-  PublicKey,
-  Mina,
-  Reducer,
-  AccountUpdate,
-  fetchAccount,
-  MerkleMap,
-  UInt64,
-} from "o1js";
-import { initBlockchain } from "zkcloudworker";
+import { Field, PublicKey, Mina } from "o1js";
 
 describe("Actions", () => {
   const contractAddress =
@@ -25,7 +14,17 @@ describe("Actions", () => {
   let lastActionState: Field | undefined = undefined;
 
   beforeAll(() => {
-    initBlockchain("berkeley");
+    const network = Mina.Network({
+      mina: [
+        "https://api.minascan.io/node/berkeley/v1/graphql",
+        "https://proxy.berkeley.minaexplorer.com/graphql",
+      ],
+      archive: [
+        "https://api.minascan.io/archive/berkeley/v1/graphql",
+        "https://archive.berkeley.minaexplorer.com",
+      ],
+    });
+    Mina.setActiveInstance(network);
   });
 
   it("should get all actions", async () => {
