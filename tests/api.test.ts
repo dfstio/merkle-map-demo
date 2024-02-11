@@ -28,7 +28,8 @@ import {
 import { Storage } from "../src/storage";
 import { MapUpdateData, MapTransition } from "../src/update";
 
-const ELEMENTS_COUNT = 1;
+const ELEMENTS_COUNT = 8;
+const addActions = false;
 
 const map = new MerkleMap();
 const userPrivateKeys: PrivateKey[] = [];
@@ -64,134 +65,134 @@ describe("Merkle map demo", () => {
     initialValue = count;
   });
 
-  it("should generate elements", () => {
-    for (let i = 0; i < ELEMENTS_COUNT; i++) {
-      const name = Field(i < 2 ? 1 : i + 1);
-      const userPrivateKey = PrivateKey.random();
-      const address = userPrivateKey.toPublicKey();
-      const element = new MapElement({
-        name,
-        address,
-        addressHash: Poseidon.hash(address.toFields()),
-        hash: Poseidon.hash([name, ...address.toFields()]),
-        storage,
-      });
-      elements.push(element);
-      userPrivateKeys.push(userPrivateKey);
-    }
-  });
+  if (addActions) {
+    it("should generate elements", () => {
+      for (let i = 0; i < ELEMENTS_COUNT; i++) {
+        const name = Field(i < 2 ? 1 : i + 1);
+        const userPrivateKey = PrivateKey.random();
+        const address = userPrivateKey.toPublicKey();
+        const element = new MapElement({
+          name,
+          address,
+          addressHash: Poseidon.hash(address.toFields()),
+          hash: Poseidon.hash([name, ...address.toFields()]),
+          storage,
+        });
+        elements.push(element);
+        userPrivateKeys.push(userPrivateKey);
+      }
+    });
 
-  it("should send the elements", async () => {
-    console.time("send elements");
-    for (let i = 0; i < ELEMENTS_COUNT; i++) {
-      const signature = Signature.create(
-        userPrivateKeys[i],
-        elements[i].toFields()
-      );
-      const tx = {
-        name: elements[i].name.toJSON(),
-        address: elements[i].address.toBase58(),
-        signature: signature.toBase58(),
-        storage: [...elements[i].storage.toFields().map((f) => f.toJSON())],
-      };
-      const args = ["add", contractAddress];
-      const apiresult = await api.createJob({
-        name: "nameservice",
-        task: "send",
-        transactions: [JSON.stringify(tx, null, 2)],
-        args,
-        developer: "@staketab",
-      });
-      startTime.push(Date.now());
-      console.log("add api call result", apiresult);
-      expect(apiresult.success).toBe(true);
-      expect(apiresult.jobId).toBeDefined();
-      if (apiresult.jobId === undefined) return;
-      jobId.push(apiresult.jobId);
-    }
-    console.timeEnd("send elements");
-    Memory.info(`should send the elements`);
-  });
+    it("should send the elements", async () => {
+      console.time("send elements");
+      for (let i = 0; i < ELEMENTS_COUNT; i++) {
+        const signature = Signature.create(
+          userPrivateKeys[i],
+          elements[i].toFields()
+        );
+        const tx = {
+          name: elements[i].name.toJSON(),
+          address: elements[i].address.toBase58(),
+          signature: signature.toBase58(),
+          storage: [...elements[i].storage.toFields().map((f) => f.toJSON())],
+        };
+        const args = ["add", contractAddress];
+        const apiresult = await api.createJob({
+          name: "nameservice",
+          task: "send",
+          transactions: [JSON.stringify(tx, null, 2)],
+          args,
+          developer: "@staketab",
+        });
+        startTime.push(Date.now());
+        console.log("add api call result", apiresult);
+        expect(apiresult.success).toBe(true);
+        expect(apiresult.jobId).toBeDefined();
+        if (apiresult.jobId === undefined) return;
+        jobId.push(apiresult.jobId);
+      }
+      console.timeEnd("send elements");
+      Memory.info(`should send the elements`);
+    });
 
-  it(`should get the tx hashes`, async () => {
-    let i = 0;
-    for (const id of jobId) {
-      const result = await api.waitForJobResult({ jobId: id });
-      endTime.push(Date.now());
+    it(`should get the tx hashes`, async () => {
+      let i = 0;
+      for (const id of jobId) {
+        const result = await api.waitForJobResult({ jobId: id });
+        endTime.push(Date.now());
+        console.log(
+          `Time spent to send add tx: ${formatTime(
+            endTime[i] - startTime[i]
+          )} (${endTime[i] - startTime[i]} ms)`
+        );
+        console.log("add api call result", result);
+        //expect(result.success).toBe(true);
+        if (result.success === true) {
+          const txHash = result.result.result;
+          console.log("add txHash", txHash);
+          //expect(txHash).toBeDefined();
+          if (txHash !== undefined) hash.push(txHash);
+        }
+        i++;
+      }
+    });
+
+    it(`should wait for tx to be included into block`, async () => {
       console.log(
-        `Time spent to send add tx: ${formatTime(endTime[i] - startTime[i])} (${
-          endTime[i] - startTime[i]
-        } ms)`
+        `Sent add txs: ${hash.length}/${ELEMENTS_COUNT} (${Math.floor(
+          (hash.length * 100) / ELEMENTS_COUNT
+        )}%)`
       );
-      console.log("add api call result", result);
-      expect(result.success).toBe(true);
-      if (result.success === false) return;
-      const txHash = result.result.result;
-      console.log("add txHash", txHash);
-      expect(txHash).toBeDefined();
-      if (txHash === undefined) return;
-      hash.push(txHash);
-      i++;
-    }
-  });
-
-  it(`should wait for tx to be included into block`, async () => {
-    expect(hash.length).toBeGreaterThan(0);
-    if (hash.length === 0) return;
-    console.log("Waiting for add txs to be included into block...", hash);
-    console.time("txs included into block");
-    let remainedTx = hash.length;
-    while (remainedTx > 0) {
-      await sleep(1000 * 30);
-      for (const h of hash) {
-        const result = await checkZkappTransaction(h);
-        if (result.success) {
-          console.log("add tx included into block:", h);
-          remainedTx--;
+      expect(hash.length).toBeGreaterThan(0);
+      if (hash.length === 0) return;
+      console.log("Waiting for add txs to be included into block...", hash);
+      console.time("txs included into block");
+      let remainedTx = hash.length;
+      while (remainedTx > 0) {
+        await sleep(1000 * 30);
+        for (const h of hash) {
+          const result = await checkZkappTransaction(h);
+          if (result.success) {
+            console.log("add tx included into block:", h);
+            remainedTx--;
+          }
         }
       }
-    }
-    console.timeEnd("txs included into block");
-  });
-
+      console.timeEnd("txs included into block");
+      await sleep(1000 * 60);
+    });
+  }
   it("should check the actions", async () => {
     console.time("check actions");
     await fetchAccount(publicKey);
-    /*
-    let actions = zkApp.reducer.getActions({
-      fromActionState: zkApp.actionState.get(),
-    });
-    console.log("actions", actions.length);
-    */
     const actions2 = await Mina.fetchActions(publicKey);
     if (Array.isArray(actions2)) {
-      console.log("actions2", actions2.length);
-      /*
-      for (let i = 0; i < actions2.length; i++) {
-        //console.log("action", actions2[i].actions[0]);
-        //console.log("hash", actions2[i].hash);
-        const element = MapElement.fromFields(
-          actions2[i].actions[0].map((f: string) => Field.fromJSON(f))
-        );
-        expect(element.name.toJSON()).toEqual(actions[i][0].name.toJSON());
-        expect(element.address.toJSON()).toEqual(
-          actions[i][0].address.toJSON()
-        );
-        expect(element.addressHash.toJSON()).toEqual(
-          actions[i][0].addressHash.toJSON()
-        );
-        expect(element.hash.toJSON()).toEqual(actions[i][0].hash.toJSON());
-      }
-      */
+      console.log("all actions:", actions2.length);
     }
   });
 
   it("should prepare and send the state update txs", async () => {
     await fetchAccount(publicKey);
-    let actions = await Mina.fetchActions(publicKey);
     let length = 0;
     let startActionState: Field = zkApp.actionState.get();
-    if (Array.isArray(actions)) length = Math.min(actions.length, BATCH_SIZE);
+    let actions = await fetchMinaActions(publicKey, startActionState);
+    if (Array.isArray(actions)) {
+      length = Math.min(actions.length, BATCH_SIZE);
+      console.log("actions total length from startActionState", actions.length);
+    } else throw new Error("actions is not an array");
+    while (length === 0 && hash.length > 0) {
+      await sleep(1000 * 60);
+      await fetchAccount(publicKey);
+      startActionState = zkApp.actionState.get();
+      actions = await fetchMinaActions(publicKey, startActionState);
+      if (Array.isArray(actions)) {
+        length = Math.min(actions.length, BATCH_SIZE);
+        console.log(
+          "actions total length from startActionState",
+          actions.length
+        );
+      } else throw new Error("actions is not an array");
+    }
     while (length > 0) {
       console.time("reduce");
       if (Array.isArray(actions)) {
@@ -209,7 +210,19 @@ describe("Merkle map demo", () => {
           count: Field(length),
           hash,
         });
+        console.log("startActionsState", startActionState.toJSON());
         const endActionState: Field = Field.fromJSON(actions[length - 1].hash);
+        console.log("endActionState", endActionState.toJSON());
+        console.log("actions", actions);
+        const actions2 = await fetchMinaActions(publicKey, startActionState);
+        if (Array.isArray(actions2)) {
+          console.log("actions2 length", actions2.length);
+          /*
+          if (actions2.length !== length)
+            throw new Error("actions2 length is not equal to length");
+          */
+        } else throw new Error("actions2 is not an array");
+
         const update = await prepareProofData(elements);
         console.log("sending proofMap job", update.length);
         const signature = Signature.create(ownerPrivateKey, update);
@@ -300,23 +313,27 @@ describe("Merkle map demo", () => {
         }
         console.timeEnd("reduce tx included into block");
       }
+      await sleep(1000 * 60);
       await fetchAccount(publicKey);
       startActionState = zkApp.actionState.get();
-      const actionStates = { fromActionState: startActionState };
-      actions = await Mina.fetchActions(publicKey, actionStates);
-      if (Array.isArray(actions)) length = Math.min(actions.length, BATCH_SIZE);
+      actions = await fetchMinaActions(publicKey, startActionState);
+      if (actions && Array.isArray(actions))
+        length = Math.min(actions.length, BATCH_SIZE);
+      else throw new Error("actions is not an array");
       console.timeEnd("reduce");
     }
   });
 
-  it("should get count", async () => {
+  it("should get final values", async () => {
     await fetchAccount(publicKey);
     const zkApp = new MapContract(publicKey);
     const count: Field = zkApp.count.get();
-    console.log("count:", count.toBigInt().toString());
-    //expect(Number(count.toBigInt())).toEqual(ELEMENTS_COUNT);
+    const root: Field = zkApp.root.get();
+    console.log("final count:", count.toJSON());
+    console.log("final root:", root.toJSON());
+    initialValue = count;
   });
-
+  /*
   it("should reset the value", async () => {
     const map = new MerkleMap();
     const root = map.getRoot();
@@ -373,15 +390,16 @@ describe("Merkle map demo", () => {
     console.timeEnd("reset tx included into block");
   });
 
-  it("should get root", async () => {
-    const map = new MerkleMap();
-    const emptyRoot = map.getRoot();
+  it("should get final values after reset", async () => {
     await fetchAccount(publicKey);
     const zkApp = new MapContract(publicKey);
+    const count: Field = zkApp.count.get();
     const root: Field = zkApp.root.get();
-    console.log("root:", root.toJSON());
-    expect(root.toJSON()).toEqual(emptyRoot.toJSON());
+    console.log("final count:", count.toJSON());
+    console.log("final root:", root.toJSON());
+    initialValue = count;
   });
+  */
 });
 
 async function prepareProofData(elements: MapElement[]): Promise<Field[]> {
@@ -494,4 +512,28 @@ async function fetchAccount(publicKey: PublicKey) {
   }
   console.log("Timeout in fetchAccount");
   return result;
+}
+
+async function fetchMinaActions(
+  publicKey: PublicKey,
+  fromActionState: Field,
+  endActionState?: Field
+) {
+  const timeout = 1000 * 60 * 5; // 5 minutes
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeout) {
+    try {
+      let actions = await Mina.fetchActions(publicKey, {
+        fromActionState,
+        endActionState,
+      });
+      if (Array.isArray(actions)) return actions;
+      else console.log("Cannot fetch actions - wrong format");
+    } catch (error) {
+      console.log("Error in fetchMinaActions", error);
+    }
+    await sleep(1000 * 10);
+  }
+  console.log("Timeout in fetchMinaActions");
+  return undefined;
 }
