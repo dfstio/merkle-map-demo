@@ -2,22 +2,22 @@ import { describe, expect, it } from "@jest/globals";
 import {
   Field,
   PrivateKey,
-  PublicKey,
   Mina,
   Reducer,
   AccountUpdate,
   fetchAccount,
   MerkleMap,
-  UInt64,
 } from "o1js";
 import { initBlockchain, fee, accountBalanceMina } from "zkcloudworker";
 import { MapContract } from "../src/mapcontract";
 import { MapUpdate } from "../src/update";
+import {
+  contractPrivateKey,
+  ownerPrivateKey,
+  deployer as berkeleyDeployer,
+} from "../src/config";
 
 const useLocalBlockchain = false;
-const ownerPrivateKey = PrivateKey.fromBase58(
-  "EKFRg9MugtXvFPe4N6Au28kQyYx9txt4CVPgBPRYdv4wvbKBJpEy"
-); // owner of the contract
 const ownerPublicKey = ownerPrivateKey.toPublicKey();
 
 describe("Contract", () => {
@@ -36,14 +36,10 @@ describe("Contract", () => {
       deployer = Local.testAccounts[0].privateKey;
     } else {
       initBlockchain("berkeley");
-      deployer = PrivateKey.fromBase58(
-        "EKEM8aqm9HNJjnpPjgZELpDR8XnPAD3qX2sQEnZEV1JoYKdhBkFY"
-      );
+      deployer = berkeleyDeployer;
     }
     const sender = deployer.toPublicKey();
-    const privateKey = PrivateKey.fromBase58(
-      "EKEexFXfLfyY2i8v3CiBC56meVtjbCac7wMS6z6ez7NJDtTQJ7Lr"
-    );
+    const privateKey = contractPrivateKey;
     const publicKey = privateKey.toPublicKey();
     const zkApp = new MapContract(publicKey);
     console.log("zkApp address:", publicKey.toBase58());

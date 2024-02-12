@@ -48,17 +48,17 @@ describe("Contract", () => {
 
   it(`should compile contract`, async () => {
     console.time("methods analyzed");
-    const methods = MapContract.analyzeMethods();
+    let methods = MapContract.analyzeMethods();
     console.timeEnd("methods analyzed");
     //console.log("methods", methods);
     // calculate the size of the contract - the sum or rows for each method
-    const size = Object.values(methods).reduce(
+    let size = Object.values(methods).reduce(
       (acc, method) => acc + method.rows,
       0
     );
     const maxRows = 2 ** 16;
     // calculate percentage rounded to 0 decimal places
-    const percentage = Math.round((size / maxRows) * 100);
+    let percentage = Math.round((size / maxRows) * 100);
 
     console.log(
       `method's total size for a contract with batch size ${BATCH_SIZE} is ${size} rows (${percentage}% of max ${maxRows} rows)`
@@ -67,6 +67,22 @@ describe("Contract", () => {
     console.log("update rows:", methods["update"].rows);
     console.log("reduce rows:", methods["reduce"].rows);
     console.log("setOwner rows:", methods["setOwner"].rows);
+
+    const methods1 = MapUpdate.analyzeMethods();
+
+    //console.log("methods", methods);
+    // calculate the size of the contract - the sum or rows for each method
+    size = Object.values(methods1).reduce(
+      (acc, method) => acc + method.rows,
+      0
+    );
+    // calculate percentage rounded to 0 decimal places
+    percentage = Math.round((size / maxRows) * 100);
+
+    console.log(
+      `method's total size for a MapUpdate is ${size} rows (${percentage}% of max ${maxRows} rows)`
+    );
+
     console.log("Compiling contracts...");
     console.time("MapUpdate compiled");
     verificationKey = (await MapUpdate.compile()).verificationKey;

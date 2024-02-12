@@ -17,7 +17,6 @@ import {
   Poseidon,
   Signature,
   Mina,
-  UInt32,
 } from "o1js";
 import {
   MapContract,
@@ -27,25 +26,19 @@ import {
 } from "../src/mapcontract";
 import { Storage } from "../src/storage";
 import { MapUpdateData, MapTransition } from "../src/update";
+import { ownerPrivateKey, contractAddress, JWT } from "../src/config";
 
-const ELEMENTS_COUNT = 8;
+const ELEMENTS_COUNT = 128;
 const addActions = false;
 
 const map = new MerkleMap();
 const userPrivateKeys: PrivateKey[] = [];
 const elements: MapElement[] = [];
 const storage = new Storage({ hashString: [Field(1), Field(2)] });
-const ownerPrivateKey = PrivateKey.fromBase58(
-  "EKFRg9MugtXvFPe4N6Au28kQyYx9txt4CVPgBPRYdv4wvbKBJpEy"
-); // owner of the contract
+
 let transactions: string[] = [];
 
 describe("Merkle map demo", () => {
-  const JWT =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTkwMzQ5NDYiLCJpYXQiOjE3MDEzNTY5NzEsImV4cCI6MTczMjg5Mjk3MX0.r94tKntDvLpPJT2zzEe7HMUcOAQYQu3zWNuyFFiChD0";
-
-  const contractAddress =
-    "B62qjirMYUSyjb1AcyNmAF5dLqTk3KQuoUYKv5FGdx618GDmRfYNAME";
   const publicKey = PublicKey.fromBase58(contractAddress);
   const zkApp = new MapContract(publicKey);
   const startTime: number[] = [];
@@ -68,7 +61,7 @@ describe("Merkle map demo", () => {
   if (addActions) {
     it("should generate elements", () => {
       for (let i = 0; i < ELEMENTS_COUNT; i++) {
-        const name = Field(i < 2 ? 1 : i + 1);
+        const name = Field(i < 2 ? 1 : i + 1000);
         const userPrivateKey = PrivateKey.random();
         const address = userPrivateKey.toPublicKey();
         const element = new MapElement({
@@ -159,9 +152,11 @@ describe("Merkle map demo", () => {
         }
       }
       console.timeEnd("txs included into block");
-      await sleep(1000 * 60);
+      await sleep(1000 * 60 * 5);
     });
   }
+
+  /*
   it("should check the actions", async () => {
     console.time("check actions");
     await fetchAccount(publicKey);
@@ -170,11 +165,13 @@ describe("Merkle map demo", () => {
       console.log("all actions:", actions2.length);
     }
   });
+  */
 
   it("should prepare and send the state update txs", async () => {
     await fetchAccount(publicKey);
     let length = 0;
     let startActionState: Field = zkApp.actionState.get();
+    console.log("startActionState", startActionState.toJSON());
     let actions = await fetchMinaActions(publicKey, startActionState);
     if (Array.isArray(actions)) {
       length = Math.min(actions.length, BATCH_SIZE);
@@ -519,7 +516,7 @@ async function fetchMinaActions(
   fromActionState: Field,
   endActionState?: Field
 ) {
-  const timeout = 1000 * 60 * 5; // 5 minutes
+  const timeout = 1000 * 60 * 60; // 1 hour
   const startTime = Date.now();
   while (Date.now() - startTime < timeout) {
     try {
@@ -529,10 +526,13 @@ async function fetchMinaActions(
       });
       if (Array.isArray(actions)) return actions;
       else console.log("Cannot fetch actions - wrong format");
-    } catch (error) {
-      console.log("Error in fetchMinaActions", error);
+    } catch (error: any) {
+      console.log(
+        "Error in fetchMinaActions",
+        error.toString().substring(0, 300)
+      );
     }
-    await sleep(1000 * 10);
+    await sleep(1000 * 60 * 2);
   }
   console.log("Timeout in fetchMinaActions");
   return undefined;
