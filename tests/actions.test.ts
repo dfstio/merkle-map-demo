@@ -17,11 +17,11 @@ describe("Actions", () => {
     const network = Mina.Network({
       mina: [
         "https://api.minascan.io/node/berkeley/v1/graphql",
-        "https://proxy.berkeley.minaexplorer.com/graphql",
+        //"https://proxy.berkeley.minaexplorer.com/graphql",
       ],
       archive: [
         "https://api.minascan.io/archive/berkeley/v1/graphql",
-        "https://archive.berkeley.minaexplorer.com",
+        //"https://archive.berkeley.minaexplorer.com",
       ],
     });
     Mina.setActiveInstance(network);
