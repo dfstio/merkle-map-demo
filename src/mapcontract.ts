@@ -18,7 +18,7 @@ import {
 import { Storage } from "./storage";
 import { MapUpdateProof } from "./update";
 
-export const BATCH_SIZE = 3;
+export const BATCH_SIZE = 256;
 
 export class MapElement extends Struct({
   name: Field,
