@@ -26,10 +26,12 @@ import {
   MapUpdateData,
 } from "../src/update";
 import { Storage } from "../src/storage";
-import { Memory, sleep } from "zkcloudworker";
+import { sleep } from "zkcloudworker";
 
-const ELEMENTS_COUNT = 16;
+const ELEMENTS_COUNT = 1024;
+const isGC = true;
 const map = new MerkleMap();
+
 let verificationKey: VerificationKey | undefined = undefined;
 
 describe("Contract", () => {
@@ -47,6 +49,7 @@ describe("Contract", () => {
   const ownerPublicKey = ownerPrivateKey.toPublicKey();
 
   it(`should compile contract`, async () => {
+    await collect();
     console.time("methods analyzed");
     let methods = MapContract.analyzeMethods();
     console.timeEnd("methods analyzed");
@@ -140,7 +143,10 @@ describe("Contract", () => {
           signature
         );
       });
+      await collect();
+      Memory.info(`element ${i + 1}/${ELEMENTS_COUNT} sent`);
       await tx.prove();
+      if (i === 0) Memory.info(`Setting base for RSS memory`, false, true);
       await tx.sign([deployer]).send();
     }
     console.timeEnd("send elements");
@@ -213,6 +219,7 @@ describe("Contract", () => {
             signature
           );
         });
+        await collect();
         await tx.prove();
         await tx.sign([deployer]).send();
         Memory.info(`should update the state`);
@@ -276,7 +283,6 @@ async function calculateProof(
 
   let proofs: MapUpdateProof[] = [];
   for (let i = 0; i < elements.length; i++) {
-    await sleep(100); // alow GC to run
     const state = updates[i].isElementAccepted
       ? MapTransition.accept(updates[i].update!, elements[i].address)
       : MapTransition.reject(
@@ -284,6 +290,8 @@ async function calculateProof(
           elements[i].name,
           elements[i].address
         );
+
+    await collect();
     const proof = updates[i].isElementAccepted
       ? await MapUpdate.accept(state, updates[i].update!, elements[i].address)
       : await MapUpdate.reject(
@@ -292,6 +300,7 @@ async function calculateProof(
           elements[i].name,
           elements[i].address
         );
+    if (i === 0) Memory.info(`Setting base for RSS memory`, false, true);
     proofs.push(proof);
     if (verbose) Memory.info(`Proof ${i + 1}/${elements.length} created`);
   }
@@ -299,13 +308,14 @@ async function calculateProof(
   console.log("Merging proofs...");
   let proof: MapUpdateProof = proofs[0];
   for (let i = 1; i < proofs.length; i++) {
-    await sleep(100); // alow GC to run
     const state = MapTransition.merge(proof.publicInput, proofs[i].publicInput);
+    await collect();
     let mergedProof: MapUpdateProof = await MapUpdate.merge(
       state,
       proof,
       proofs[i]
     );
+    if (i === 1) Memory.info(`Setting base for RSS memory`, false, true);
     proof = mergedProof;
     if (verbose) Memory.info(`Proof ${i}/${proofs.length - 1} merged`);
   }
@@ -327,4 +337,72 @@ async function calculateProof(
   }
 
   return proof;
+}
+
+class Memory {
+  // eslint-disable-next-line @typescript-eslint/no-inferrable-types
+  static rss: number = 0;
+  constructor() {
+    Memory.rss = 0;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-inferrable-types
+  public static info(
+    description: string = ``,
+    fullInfo: boolean = false,
+    reset: boolean = false
+  ) {
+    const memoryData = process.memoryUsage();
+    const formatMemoryUsage = (data: number) =>
+      `${Math.round(data / 1024 / 1024)} MB`;
+    const oldRSS = Memory.rss;
+    if (reset) Memory.rss = Math.round(memoryData.rss / 1024 / 1024);
+
+    const memoryUsage = fullInfo
+      ? {
+          step: `${description}:`,
+          rssDelta: `${(oldRSS === 0
+            ? 0
+            : Memory.rss - oldRSS
+          ).toString()} MB -> Resident Set Size memory change`,
+          rss: `${formatMemoryUsage(
+            memoryData.rss
+          )} -> Resident Set Size - total memory allocated`,
+          heapTotal: `${formatMemoryUsage(
+            memoryData.heapTotal
+          )} -> total size of the allocated heap`,
+          heapUsed: `${formatMemoryUsage(
+            memoryData.heapUsed
+          )} -> actual memory used during the execution`,
+          external: `${formatMemoryUsage(
+            memoryData.external
+          )} -> V8 external memory`,
+        }
+      : `RSS memory ${description}: ${formatMemoryUsage(memoryData.rss)}${
+          oldRSS === 0
+            ? ``
+            : `, changed by ` +
+              (Math.round(memoryData.rss / 1024 / 1024) - oldRSS).toString() +
+              ` MB`
+        }`;
+
+    console.log(memoryUsage);
+  }
+}
+
+async function collect() {
+  //await sleep(100);
+  if (isGC) {
+    const memoryData1 = process.memoryUsage();
+    if (global.gc === undefined) throw new Error("global.gc is undefined");
+    await global.gc();
+    const memoryData2 = process.memoryUsage();
+    if (memoryData1.rss !== memoryData2.rss) {
+      console.log(
+        "RSS memory changed after GC:",
+        Math.round((memoryData1.rss - memoryData2.rss) / 1024),
+        "kB"
+      );
+    }
+  }
 }
