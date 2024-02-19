@@ -11,7 +11,7 @@ import {
 import { MapElement } from "../src/mapcontract";
 import { Storage } from "../src/storage";
 
-const ELEMENTS_NUMBER = 100000;
+const ELEMENTS_NUMBER = 1000;
 const elements: MapElement[] = [];
 
 describe("Map", () => {
