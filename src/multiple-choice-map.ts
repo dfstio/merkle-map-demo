@@ -54,7 +54,8 @@ class MultipleChoiceMapTransition extends Struct({
   static accept(
     update: MultipleChoiceMapUpdateData,
     address: PublicKey,
-    commitment: Field
+    commitment: Field,
+    grade: Field
   ) {
     const [dataWitnessRootBefore, dataWitnessKey] =
       update.witness.computeRootAndKey(update.oldValue);
@@ -67,12 +68,12 @@ class MultipleChoiceMapTransition extends Struct({
     update.newRoot.assertEquals(dataWitnessRootAfter);
     const addressHash = Poseidon.hash(address.toFields());
     addressHash.assertEquals(update.key);
-    commitment.assertEquals(update.newValue);
+    grade.assertEquals(update.newValue);
 
     return new MultipleChoiceMapTransition({
       oldRoot: update.oldRoot,
       newRoot: update.newRoot,
-      hash: Poseidon.hash([update.key, ...address.toFields()]),
+      hash: Poseidon.hash([commitment, ...address.toFields()]),
       count: Field(1),
     });
   }
@@ -129,18 +130,20 @@ const MultipleChoiceMapUpdate = ZkProgram({
 
   methods: {
     accept: {
-      privateInputs: [MultipleChoiceMapUpdateData, PublicKey, Field],
+      privateInputs: [MultipleChoiceMapUpdateData, PublicKey, Field, Field],
 
       method(
         state: MultipleChoiceMapTransition,
         update: MultipleChoiceMapUpdateData,
         address: PublicKey,
-        commitment: Field
+        commitment: Field,
+        grade: Field
       ) {
         const computedState = MultipleChoiceMapTransition.accept(
           update,
           address,
-          commitment
+          commitment,
+          grade
         );
         MultipleChoiceMapTransition.assertEquals(computedState, state);
       },
