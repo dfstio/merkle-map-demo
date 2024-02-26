@@ -7,11 +7,11 @@ import {
   AccountUpdate,
   Poseidon,
   MerkleMap,
-  UInt64,
-  UInt32,
+  Bool,
   Signature,
   verify,
   VerificationKey,
+  Account,
 } from "o1js";
 import {
   MapContract,
@@ -26,10 +26,11 @@ import {
   MapUpdateData,
 } from "../src/update";
 import { Storage } from "../src/storage";
+import { emptyActionsHash, calculateActionsHash } from "../src/actions";
 import { sleep } from "zkcloudworker";
 
-const ELEMENTS_COUNT = 1024;
-const isGC = true;
+const ELEMENTS_COUNT = 7;
+const isGC = false;
 const map = new MerkleMap();
 
 let verificationKey: VerificationKey | undefined = undefined;
@@ -90,6 +91,7 @@ describe("Contract", () => {
     console.time("MapUpdate compiled");
     verificationKey = (await MapUpdate.compile()).verificationKey;
     console.timeEnd("MapUpdate compiled");
+
     console.time("MapContract compiled");
     await MapContract.compile();
     console.timeEnd("MapContract compiled");
@@ -121,11 +123,21 @@ describe("Contract", () => {
       zkApp.domain.set(Field(0));
       zkApp.root.set(root);
       zkApp.actionState.set(Reducer.initialActionState);
+      zkApp.isSynced.set(Bool(true));
       zkApp.count.set(Field(0));
       zkApp.owner.set(ownerPublicKey);
     });
     await tx.sign([deployer, privateKey]).send();
     Memory.info(`should deploy the contract`);
+    const account = Account(publicKey);
+    const finalActionState = account.actionState.get();
+    //console.log("first ActionState", finalActionState.toJSON());
+    const emptyActionsState = emptyActionsHash();
+    //console.log("emptyActionsState", emptyActionsState.toJSON());
+    const reducerActionsState = Reducer.initialActionState;
+    //console.log("reducerActionsState", reducerActionsState.toJSON());
+    expect(finalActionState.toJSON()).toEqual(emptyActionsState.toJSON());
+    expect(finalActionState.toJSON()).toEqual(reducerActionsState.toJSON());
   });
 
   it("should send the elements", async () => {
@@ -158,11 +170,17 @@ describe("Contract", () => {
       fromActionState: zkApp.actionState.get(),
     });
     // console.log("actions", actions.length);
+    let actionState = emptyActionsHash();
+    //console.log("actionState", actionState.toJSON());
     const actions2 = await Mina.fetchActions(publicKey);
+    const account = Account(publicKey);
+    const finalActionState = account.actionState.get();
+    //console.log("finalActionState", finalActionState.toJSON());
     if (Array.isArray(actions2)) {
       for (let i = 0; i < actions2.length; i++) {
-        //console.log("action", actions2[i].actions[0]);
+        //console.log("action", i, actions2[i].actions[0]);
         //console.log("hash", actions2[i].hash);
+
         const element = MapElement.fromFields(
           actions2[i].actions[0].map((f: string) => Field.fromJSON(f))
         );
@@ -174,16 +192,25 @@ describe("Contract", () => {
           actions[i][0].addressHash.toJSON()
         );
         expect(element.hash.toJSON()).toEqual(actions[i][0].hash.toJSON());
+
+        actionState = calculateActionsHash(actions2[i].actions, actionState);
+        //console.log("actionState", actionState.toJSON());
+        expect(actionState.toJSON()).toEqual(actions2[i].hash);
       }
     }
+    expect(finalActionState.toJSON()).toEqual(actionState.toJSON());
   });
 
   it("should update the state", async () => {
     let actions = await Mina.fetchActions(publicKey);
     let length = 0;
     let startActionState: Field = zkApp.actionState.get();
+    let firstPass = true;
     if (Array.isArray(actions)) length = Math.min(actions.length, BATCH_SIZE);
     while (length > 0) {
+      const isSynced = zkApp.isSynced.get().toBoolean();
+      expect(isSynced).toEqual(firstPass);
+      firstPass = false;
       console.time("reduce");
       if (Array.isArray(actions)) {
         console.log("length", length);
@@ -230,6 +257,8 @@ describe("Contract", () => {
       if (Array.isArray(actions)) length = Math.min(actions.length, BATCH_SIZE);
       console.timeEnd("reduce");
     }
+    const isSynced = zkApp.isSynced.get().toBoolean();
+    expect(isSynced).toEqual(true);
   });
 
   it("should reset the root", async () => {

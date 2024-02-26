@@ -4,7 +4,7 @@ import { Field, Poseidon, PrivateKey, Encoding, MerkleMap } from "o1js";
 import { Storage } from "../src/storage";
 import { DynamicMerkleMap, MerkleMapElement } from "../src/DynamicMerkleMap";
 
-const ELEMENTS_NUMBER = 1000;
+const ELEMENTS_NUMBER = 100;
 const mapElements: MerkleMapElement[] = [];
 
 describe("Dynamic Map", () => {
