@@ -9,8 +9,7 @@ import {
   Permissions,
   Struct,
   PublicKey,
-  UInt64,
-  UInt32,
+  Bool,
   Poseidon,
   Signature,
 } from "o1js";
@@ -18,7 +17,7 @@ import {
 import { Storage } from "./storage";
 import { MapUpdateProof } from "./update";
 
-export const BATCH_SIZE = 256;
+export const BATCH_SIZE = 3;
 
 export class MapElement extends Struct({
   name: Field,
@@ -64,6 +63,7 @@ export class MapContract extends SmartContract {
   @state(Field) count = State<Field>();
   @state(Field) actionState = State<Field>();
   @state(PublicKey) owner = State<PublicKey>();
+  @state(Bool) isSynced = State<Bool>();
 
   deploy(args: DeployArgs) {
     super.deploy(args);
@@ -171,6 +171,9 @@ export class MapContract extends SmartContract {
         }
       );
     ReducerState.assertEquals(newReducerState, reducerState);
+    const accountActionState = this.account.actionState.getAndRequireEquals();
+    const isSynced = newActionState.equals(accountActionState);
+    this.isSynced.set(isSynced);
     this.count.set(count.add(newReducerState.count));
     this.actionState.set(newActionState);
     this.root.set(proof.publicInput.newRoot);
