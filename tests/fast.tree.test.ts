@@ -7,7 +7,7 @@ const height = 20;
 const elements: Field[] = [];
 const nodes: MerkleNode[] = [];
 
-describe("Dynamic Tree", () => {
+describe("Fast Tree", () => {
   let root: Field | undefined = undefined;
 
   it(`should prepare data`, async () => {

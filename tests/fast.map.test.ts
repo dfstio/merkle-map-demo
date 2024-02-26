@@ -7,7 +7,7 @@ import { FastMerkleMap, MerkleMapElement } from "../src/FastMerkleMap";
 const ELEMENTS_NUMBER = 100;
 const mapElements: MerkleMapElement[] = [];
 
-describe("Dynamic Map", () => {
+describe("Fast Map", () => {
   let root: Field | undefined = undefined;
 
   it(`should prepare data`, async () => {
