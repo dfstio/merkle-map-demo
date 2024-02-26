@@ -1,5 +1,5 @@
 import { Field, Poseidon } from "o1js";
-import { DynamicMerkleTree } from "./DynamicMerkleTree";
+import { FastMerkleTree } from "./FastMerkleTree";
 
 const bits = 255;
 
@@ -8,11 +8,11 @@ export type MerkleMapElement = {
   value: Field;
 };
 
-export class DynamicMerkleMap {
-  tree: DynamicMerkleTree;
+export class FastMerkleMap {
+  tree: FastMerkleTree;
 
   constructor() {
-    this.tree = new DynamicMerkleTree(bits + 1);
+    this.tree = new FastMerkleTree(bits + 1);
   }
 
   _keyToIndex(key: Field) {
