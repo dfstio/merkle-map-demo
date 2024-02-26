@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 import { Field, MerkleTree } from "o1js";
-import { DynamicMerkleTree, MerkleNode } from "../src/DynamicMerkleTree";
+import { FastMerkleTree, MerkleNode } from "../src/FastMerkleTree";
 
 const ELEMENTS_NUMBER = 10000;
 const height = 20;
@@ -21,12 +21,12 @@ describe("Dynamic Tree", () => {
   });
 
   it(`should create a tree`, async () => {
-    console.time(`created a dynamic tree`);
-    const tree: DynamicMerkleTree = new DynamicMerkleTree(height);
+    console.time(`created a fast tree`);
+    const tree: FastMerkleTree = new FastMerkleTree(height);
     tree.setLeaves(nodes);
     root = tree.getRoot();
     console.log(`root`, root.toJSON());
-    console.timeEnd(`created a dynamic tree`);
+    console.timeEnd(`created a fast tree`);
   });
 
   it(`should check a tree root`, async () => {

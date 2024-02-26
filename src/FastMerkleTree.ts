@@ -12,7 +12,7 @@ export type MerkleNode = {
   digest: Field;
 };
 
-export class DynamicMerkleTree {
+export class FastMerkleTree {
   private height: number;
   private nodes: MerkleNodesMap;
   protected zeroes: Field[];

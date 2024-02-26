@@ -2,7 +2,7 @@ import { describe, expect, it } from "@jest/globals";
 import { makeString } from "zkcloudworker";
 import { Field, Poseidon, PrivateKey, Encoding, MerkleMap } from "o1js";
 import { Storage } from "../src/storage";
-import { DynamicMerkleMap, MerkleMapElement } from "../src/DynamicMerkleMap";
+import { FastMerkleMap, MerkleMapElement } from "../src/FastMerkleMap";
 
 const ELEMENTS_NUMBER = 100;
 const mapElements: MerkleMapElement[] = [];
@@ -27,12 +27,12 @@ describe("Dynamic Map", () => {
   });
 
   it(`should create a map`, async () => {
-    console.time(`created a dynamic map`);
-    const map: DynamicMerkleMap = new DynamicMerkleMap();
+    console.time(`created a fast map`);
+    const map: FastMerkleMap = new FastMerkleMap();
     map.setLeaves(mapElements);
     root = map.getRoot();
     console.log(`root`, root.toJSON());
-    console.timeEnd(`created a dynamic map`);
+    console.timeEnd(`created a fast map`);
   });
 
   it(`should check a map root`, async () => {
