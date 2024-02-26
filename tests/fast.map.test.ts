@@ -2,7 +2,7 @@ import { describe, expect, it } from "@jest/globals";
 import { makeString } from "zkcloudworker";
 import { Field, Poseidon, PrivateKey, Encoding, MerkleMap } from "o1js";
 import { Storage } from "../src/storage";
-import { FastMerkleMap, MerkleMapElement } from "../src/FastMerkleMap";
+import { FastMerkleMap, MerkleMapElement } from "../src/fast-merkle-map";
 
 const ELEMENTS_NUMBER = 100;
 const mapElements: MerkleMapElement[] = [];
