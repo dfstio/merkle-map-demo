@@ -1,6 +1,6 @@
 export {
   MultipleChoiceMapUpdate,
-  MapTransition,
+  MultipleChoiceMapTransition,
   MultipleChoiceMapUpdateProof,
   MultipleChoiceMapUpdateData,
 };
@@ -45,13 +45,17 @@ class MultipleChoiceMapUpdateData extends Struct({
   }
 }
 
-class MapTransition extends Struct({
+class MultipleChoiceMapTransition extends Struct({
   oldRoot: Field,
   newRoot: Field,
   hash: Field, // sum of hashes of all the new keys and values of the Map
   count: Field, // number of new keys in the Map
 }) {
-  static accept(update: MultipleChoiceMapUpdateData, address: PublicKey) {
+  static accept(
+    update: MultipleChoiceMapUpdateData,
+    address: PublicKey,
+    commitment: Field
+  ) {
     const [dataWitnessRootBefore, dataWitnessKey] =
       update.witness.computeRootAndKey(update.oldValue);
     update.oldRoot.assertEquals(dataWitnessRootBefore);
@@ -62,9 +66,10 @@ class MapTransition extends Struct({
     );
     update.newRoot.assertEquals(dataWitnessRootAfter);
     const addressHash = Poseidon.hash(address.toFields());
-    addressHash.assertEquals(update.newValue);
+    addressHash.assertEquals(update.key);
+    commitment.assertEquals(update.newValue);
 
-    return new MapTransition({
+    return new MultipleChoiceMapTransition({
       oldRoot: update.oldRoot,
       newRoot: update.newRoot,
       hash: Poseidon.hash([update.key, ...address.toFields()]),
@@ -72,18 +77,21 @@ class MapTransition extends Struct({
     });
   }
 
-  static reject(root: Field, key: Field, address: PublicKey) {
-    return new MapTransition({
+  static reject(root: Field, address: PublicKey, commitment: Field) {
+    return new MultipleChoiceMapTransition({
       oldRoot: root,
       newRoot: root,
-      hash: Poseidon.hash([key, ...address.toFields()]),
+      hash: Poseidon.hash([commitment, ...address.toFields()]),
       count: Field(1),
     });
   }
 
-  static merge(transition1: MapTransition, transition2: MapTransition) {
+  static merge(
+    transition1: MultipleChoiceMapTransition,
+    transition2: MultipleChoiceMapTransition
+  ) {
     transition1.newRoot.assertEquals(transition2.oldRoot);
-    return new MapTransition({
+    return new MultipleChoiceMapTransition({
       oldRoot: transition1.oldRoot,
       newRoot: transition2.newRoot,
       hash: transition1.hash.add(transition2.hash),
@@ -91,7 +99,10 @@ class MapTransition extends Struct({
     });
   }
 
-  static assertEquals(transition1: MapTransition, transition2: MapTransition) {
+  static assertEquals(
+    transition1: MultipleChoiceMapTransition,
+    transition2: MultipleChoiceMapTransition
+  ) {
     transition1.oldRoot.assertEquals(transition2.oldRoot);
     transition1.newRoot.assertEquals(transition2.newRoot);
     transition1.hash.assertEquals(transition2.hash);
@@ -102,8 +113,8 @@ class MapTransition extends Struct({
     return [this.oldRoot, this.newRoot, this.hash, this.count];
   }
 
-  static fromFields(fields: Field[]): MapTransition {
-    return new MapTransition({
+  static fromFields(fields: Field[]): MultipleChoiceMapTransition {
+    return new MultipleChoiceMapTransition({
       oldRoot: fields[0],
       newRoot: fields[1],
       hash: fields[2],
@@ -113,34 +124,43 @@ class MapTransition extends Struct({
 }
 
 const MultipleChoiceMapUpdate = ZkProgram({
-  name: "MapUpdate",
-  publicInput: MapTransition,
+  name: "MultipleChoiceMapUpdate",
+  publicInput: MultipleChoiceMapTransition,
 
   methods: {
     accept: {
-      privateInputs: [MultipleChoiceMapUpdateData, PublicKey],
+      privateInputs: [MultipleChoiceMapUpdateData, PublicKey, Field],
 
       method(
-        state: MapTransition,
+        state: MultipleChoiceMapTransition,
         update: MultipleChoiceMapUpdateData,
-        address: PublicKey
+        address: PublicKey,
+        commitment: Field
       ) {
-        const computedState = MapTransition.accept(update, address);
-        MapTransition.assertEquals(computedState, state);
+        const computedState = MultipleChoiceMapTransition.accept(
+          update,
+          address,
+          commitment
+        );
+        MultipleChoiceMapTransition.assertEquals(computedState, state);
       },
     },
 
     reject: {
-      privateInputs: [Field, Field, PublicKey],
+      privateInputs: [Field, PublicKey, Field],
 
       method(
-        state: MapTransition,
+        state: MultipleChoiceMapTransition,
         root: Field,
-        key: Field,
-        address: PublicKey
+        address: PublicKey,
+        commitment: Field
       ) {
-        const computedState = MapTransition.reject(root, key, address);
-        MapTransition.assertEquals(computedState, state);
+        const computedState = MultipleChoiceMapTransition.reject(
+          root,
+          address,
+          commitment
+        );
+        MultipleChoiceMapTransition.assertEquals(computedState, state);
       },
     },
 
@@ -148,17 +168,17 @@ const MultipleChoiceMapUpdate = ZkProgram({
       privateInputs: [SelfProof, SelfProof],
 
       method(
-        newState: MapTransition,
-        proof1: SelfProof<MapTransition, void>,
-        proof2: SelfProof<MapTransition, void>
+        newState: MultipleChoiceMapTransition,
+        proof1: SelfProof<MultipleChoiceMapTransition, void>,
+        proof2: SelfProof<MultipleChoiceMapTransition, void>
       ) {
         proof1.verify();
         proof2.verify();
-        const computedState = MapTransition.merge(
+        const computedState = MultipleChoiceMapTransition.merge(
           proof1.publicInput,
           proof2.publicInput
         );
-        MapTransition.assertEquals(computedState, newState);
+        MultipleChoiceMapTransition.assertEquals(computedState, newState);
       },
     },
   },
