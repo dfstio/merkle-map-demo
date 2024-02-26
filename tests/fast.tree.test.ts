@@ -1,13 +1,13 @@
 import { describe, expect, it } from "@jest/globals";
 import { Field, MerkleTree } from "o1js";
-import { FastMerkleTree, MerkleNode } from "../src/FastMerkleTree";
+import { FastMerkleTree, MerkleNode } from "../src/fast-merkle-tree";
 
 const ELEMENTS_NUMBER = 10000;
 const height = 20;
 const elements: Field[] = [];
 const nodes: MerkleNode[] = [];
 
-describe("Dynamic Tree", () => {
+describe("Fast Tree", () => {
   let root: Field | undefined = undefined;
 
   it(`should prepare data`, async () => {

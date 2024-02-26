@@ -1,5 +1,5 @@
 import { Field, Poseidon } from "o1js";
-import { FastMerkleTree } from "./FastMerkleTree";
+import { FastMerkleTree } from "./fast-merkle-tree";
 
 const bits = 255;
 
