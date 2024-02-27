@@ -1,3 +1,39 @@
+/*
+Example of the transaction sent using this script that calculates recursive proof for 128 actions and then reduces 128 actions:
+https://minascan.io/berkeley/tx/5JuQ2hzqBMJGc2BcMNAxPgX3VaSLNGJctMzELJhViPcjdXJSTSkS?type=zk-tx
+
+
+zkCloudWorker API for this script:
+https://github.com/dfstio/minanft-api/blob/master/zkcloudworker.ts#L119
+https://github.com/dfstio/minanft-api/blob/master/src/external/NameService/plugin.ts
+
+Issues discovered:
+https://github.com/o1-labs/o1js/issues/1426
+https://github.com/o1-labs/o1js/issues/1427
+
+Script should be run manually:
+First, reset script should be run to reset the contract to the initial state:
+yarn reset
+Then, after the reset tx is included into the block, the main script should be run:
+yarn api 
+in case of archive node issues, it should be run again partially after the issues are resolved 
+(1-2 hours depending on the number of actions, see issues for details)
+by commenting some tests and running only the part of the script that is not executed yet.
+
+Some of the errors of archive node are being resolved automatically within timeout, having many errors during script execution 
+is normal and expected with current archive node state - see lib/fetch.ts for details or error handling.
+
+Total billable time is about 4 hours on AWS, with 128 workers running in parallel:
+
+Time spent to calculate and merge 128 proofs: 15 min (956016 ms)
+Time to send reduce transaction for 128 actions: 2 min (143389 ms)
+Total time for reducing 128 actions (it is about 256 proof calculations) - 17 minutes
+Billable AWS time:  14,516,089 ms
+
+Cost for 128 actions:
+14,516 sec * 8 GB * $0.0000166667 for every GB-second = $1.93, or 0.7 cents per proof
+*/
+
 import { describe, expect, it } from "@jest/globals";
 import {
   zkCloudWorker,

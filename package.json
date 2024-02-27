@@ -1,6 +1,6 @@
 {
   "name": "merkle-map-demo",
-  "version": "1.1",
+  "version": "1.2",
   "author": "DFST",
   "license": "Apache-2.0",
   "exports": {
@@ -15,8 +15,8 @@
     "test": "jest tests/*.test.ts",
     "jest": "jest",
     "coverage": "jest --coverage",
-    "api": "jest tests/api.test.ts",
-    "reset": "jest tests/reset.test.ts",
+    "api": "jest tests/api/api.base.test.ts",
+    "reset": "jest tests/api/reset.base.test.ts",
     "gc": "node --expose-gc node_modules/jest/bin/jest.js tests/contract.test"
   },
   "dependencies": {
