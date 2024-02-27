@@ -26,7 +26,7 @@ import {
   MapUpdateData,
 } from "../src/base/update";
 import { Storage } from "../src/lib/storage";
-import { emptyActionsHash, calculateActionsHash } from "../src/lib/actions";
+import { emptyActionsHash, calculateActionsHash } from "../src/lib/hash";
 import { sleep } from "zkcloudworker";
 
 const ELEMENTS_COUNT = 7;
