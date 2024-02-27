@@ -1,4 +1,22 @@
-import { Field, Poseidon, Reducer } from "o1js";
+import { Field, Poseidon, Reducer, Encoding } from "o1js";
+
+export function hashWithPrefix(prefix: string, input: Field[]) {
+  let init = salt(prefix);
+  return Poseidon.update(init, input)[0];
+}
+
+export function prefixToField(prefix: string) {
+  let fieldSize = Field.sizeInBytes;
+  if (prefix.length >= fieldSize) throw Error("prefix too long");
+  let stringBytes = stringToBytes(prefix);
+  return Field.fromBytes(
+    stringBytes.concat(Array(fieldSize - stringBytes.length).fill(0))
+  );
+}
+
+export function stringToFields(s: string): Field[] {
+  return Encoding.stringToFields(s);
+}
 
 export function calculateActionsHash(actions: string[][], actionState: Field) {
   let actionHash = fromJSON(actions).hash;
@@ -21,24 +39,10 @@ function salt(prefix: string) {
   return Poseidon.update(initialState(), [prefixToField(prefix)]);
 }
 
-function prefixToField(prefix: string) {
-  let fieldSize = Field.sizeInBytes;
-  if (prefix.length >= fieldSize) throw Error("prefix too long");
-  let stringBytes = stringToBytes(prefix);
-  return Field.fromBytes(
-    stringBytes.concat(Array(fieldSize - stringBytes.length).fill(0))
-  );
-}
-
 const encoder = new TextEncoder();
 
 function stringToBytes(s: string) {
   return [...encoder.encode(s)];
-}
-
-function hashWithPrefix(prefix: string, input: Field[]) {
-  let init = salt(prefix);
-  return Poseidon.update(init, input)[0];
 }
 
 type Event = Field[];
