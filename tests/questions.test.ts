@@ -4,8 +4,6 @@ import {
   Question,
   generateAnswers,
   generateQuestions,
-  MultipleChoiceAnswer,
-  MultipleChoiceQuestionType,
   calculateAnswersCommitment,
   calculateQuestionsCommitment,
   validateQuestions,
@@ -15,10 +13,12 @@ import {
 
 const QUESTIONS_NUMBER = 10;
 const CHOICES_NUMBER = 5;
+const USERS_COUNT = 7;
 const prefixQuestions = "questions";
 const prefixAnswers = "answers";
 let questions: Question[] = [];
-let answers: TestAnswer = { answers: [] };
+let answers: TestAnswer[] = [];
+let questionsCommitment: Field | undefined = undefined;
 
 describe("Questions", () => {
   it(`should generate questions`, async () => {
@@ -36,26 +36,6 @@ describe("Questions", () => {
     expect(checkQuestions).toBe(true);
   });
 
-  it(`should generate valid answers`, async () => {
-    console.time(`prepared answers`);
-    answers = await generateAnswers(questions, true);
-    console.timeEnd(`prepared answers`);
-    expect(answers).toBeDefined();
-    expect(answers.answers.length).toBe(QUESTIONS_NUMBER);
-    const checkAnswer = validateAnswers(questions, answers, 0);
-    expect(checkAnswer).toBe(true);
-  });
-
-  it(`should generate invalid answers`, async () => {
-    console.time(`prepared invalid answers`);
-    const invalidAnswers = await generateAnswers(questions, false);
-    console.timeEnd(`prepared invalid answers`);
-    expect(invalidAnswers).toBeDefined();
-    expect(invalidAnswers.answers.length).toBe(QUESTIONS_NUMBER);
-    const checkAnswer = validateAnswers(questions, invalidAnswers, 0);
-    expect(checkAnswer).toBe(false);
-  });
-
   it(`should calculate commitment for questions`, async () => {
     console.time(`calculated commitment for questions`);
     const commitment = calculateQuestionsCommitment(questions, prefixQuestions);
@@ -63,14 +43,62 @@ describe("Questions", () => {
     console.log(`questions commitment`, commitment.toJSON());
     expect(commitment).toBeDefined();
     expect(commitment).toBeInstanceOf(Field);
+    questionsCommitment = commitment;
+  });
+
+  it(`should generate valid answers`, async () => {
+    expect(questionsCommitment).toBeDefined();
+    if (questionsCommitment === undefined) return;
+    console.time(`prepared answers`);
+    answers = generateAnswers(
+      questions,
+      questionsCommitment,
+      USERS_COUNT,
+      true
+    );
+    console.timeEnd(`prepared answers`);
+    expect(answers).toBeDefined();
+    for (const answer of answers) {
+      const checkAnswer = validateAnswers(
+        questions,
+        prefixQuestions,
+        answer,
+        0
+      );
+      expect(checkAnswer).toBe(true);
+    }
+  });
+
+  it(`should generate invalid answers`, async () => {
+    expect(questionsCommitment).toBeDefined();
+    if (questionsCommitment === undefined) return;
+    console.time(`prepared invalid answers`);
+    const invalidAnswers = generateAnswers(
+      questions,
+      questionsCommitment,
+      USERS_COUNT,
+      false
+    );
+    console.timeEnd(`prepared invalid answers`);
+    expect(invalidAnswers).toBeDefined();
+    for (const answer of invalidAnswers) {
+      const checkAnswer = validateAnswers(
+        questions,
+        prefixQuestions,
+        answer,
+        0
+      );
+      expect(checkAnswer).toBe(false);
+    }
   });
 
   it(`should calculate commitment for answers`, async () => {
     console.time(`calculated commitment for answers`);
-    const commitment = calculateAnswersCommitment(answers, prefixAnswers);
+    for (const answer of answers) {
+      const commitment = calculateAnswersCommitment(answer, prefixAnswers);
+      expect(commitment).toBeDefined();
+      expect(commitment).toBeInstanceOf(Field);
+    }
     console.timeEnd(`calculated commitment for answers`);
-    console.log(`answers commitment`, commitment.toJSON());
-    expect(commitment).toBeDefined();
-    expect(commitment).toBeInstanceOf(Field);
   });
 });

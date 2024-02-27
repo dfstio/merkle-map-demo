@@ -9,7 +9,6 @@ import {
   MerkleMap,
   Bool,
   Signature,
-  verify,
   VerificationKey,
   Account,
 } from "o1js";
@@ -19,15 +18,12 @@ import {
   ReducerState,
   BATCH_SIZE,
 } from "../src/base/mapcontract";
-import {
-  MapUpdateProof,
-  MapTransition,
-  MapUpdate,
-  MapUpdateData,
-} from "../src/base/update";
+import { MapUpdateProof, MapUpdate } from "../src/base/update";
+import { calculateProof } from "../src/base/proof";
 import { Storage } from "../src/lib/storage";
 import { emptyActionsHash, calculateActionsHash } from "../src/lib/hash";
-import { sleep } from "zkcloudworker";
+import { collect } from "../src/lib/gc";
+import { Memory } from "../src/lib/memory";
 
 const ELEMENTS_COUNT = 7;
 const isGC = false;
@@ -231,7 +227,12 @@ describe("Contract", () => {
 
         expect(verificationKey).toBeDefined();
         if (verificationKey === undefined) return;
-        const proof: MapUpdateProof = await calculateProof(elements, true);
+        const proof: MapUpdateProof = await calculateProof(
+          elements,
+          map,
+          verificationKey,
+          true
+        );
         const signature = Signature.create(
           ownerPrivateKey,
           proof.publicInput.toFields()
@@ -275,163 +276,3 @@ describe("Contract", () => {
     Memory.info(`reset`);
   });
 });
-
-async function calculateProof(
-  elements: MapElement[],
-  verbose: boolean = false
-): Promise<MapUpdateProof> {
-  console.log(`Calculating proofs for ${elements.length} elements...`);
-  if (verificationKey === undefined)
-    throw new Error("Verification key is not defined");
-
-  interface ElementState {
-    isElementAccepted: boolean;
-    update?: MapUpdateData;
-    oldRoot: Field;
-  }
-  let updates: ElementState[] = [];
-
-  for (const element of elements) {
-    const oldRoot = map.getRoot();
-    if (isAccepted(element)) {
-      map.set(element.name, element.addressHash);
-      const newRoot = map.getRoot();
-      const update = new MapUpdateData({
-        oldRoot,
-        newRoot,
-        key: element.name,
-        oldValue: Field(0),
-        newValue: element.addressHash,
-        witness: map.getWitness(element.name),
-      });
-      updates.push({ isElementAccepted: true, update, oldRoot });
-    } else {
-      updates.push({ isElementAccepted: false, oldRoot });
-    }
-  }
-
-  let proofs: MapUpdateProof[] = [];
-  for (let i = 0; i < elements.length; i++) {
-    const state = updates[i].isElementAccepted
-      ? MapTransition.accept(updates[i].update!, elements[i].address)
-      : MapTransition.reject(
-          updates[i].oldRoot,
-          elements[i].name,
-          elements[i].address
-        );
-
-    await collect();
-    const proof = updates[i].isElementAccepted
-      ? await MapUpdate.accept(state, updates[i].update!, elements[i].address)
-      : await MapUpdate.reject(
-          state,
-          updates[i].oldRoot,
-          elements[i].name,
-          elements[i].address
-        );
-    if (i === 0) Memory.info(`Setting base for RSS memory`, false, true);
-    proofs.push(proof);
-    if (verbose) Memory.info(`Proof ${i + 1}/${elements.length} created`);
-  }
-
-  console.log("Merging proofs...");
-  let proof: MapUpdateProof = proofs[0];
-  for (let i = 1; i < proofs.length; i++) {
-    const state = MapTransition.merge(proof.publicInput, proofs[i].publicInput);
-    await collect();
-    let mergedProof: MapUpdateProof = await MapUpdate.merge(
-      state,
-      proof,
-      proofs[i]
-    );
-    if (i === 1) Memory.info(`Setting base for RSS memory`, false, true);
-    proof = mergedProof;
-    if (verbose) Memory.info(`Proof ${i}/${proofs.length - 1} merged`);
-  }
-
-  function isAccepted(element: MapElement): boolean {
-    const name = element.name;
-    const value = map.get(name);
-    const isAccepted: boolean = value.equals(Field(0)).toBoolean();
-    return isAccepted;
-  }
-  const verificationResult: boolean = await verify(
-    proof.toJSON(),
-    verificationKey
-  );
-
-  console.log("Proof verification result:", verificationResult);
-  if (verificationResult === false) {
-    throw new Error("Proof verification error");
-  }
-
-  return proof;
-}
-
-class Memory {
-  // eslint-disable-next-line @typescript-eslint/no-inferrable-types
-  static rss: number = 0;
-  constructor() {
-    Memory.rss = 0;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-inferrable-types
-  public static info(
-    description: string = ``,
-    fullInfo: boolean = false,
-    reset: boolean = false
-  ) {
-    const memoryData = process.memoryUsage();
-    const formatMemoryUsage = (data: number) =>
-      `${Math.round(data / 1024 / 1024)} MB`;
-    const oldRSS = Memory.rss;
-    if (reset) Memory.rss = Math.round(memoryData.rss / 1024 / 1024);
-
-    const memoryUsage = fullInfo
-      ? {
-          step: `${description}:`,
-          rssDelta: `${(oldRSS === 0
-            ? 0
-            : Memory.rss - oldRSS
-          ).toString()} MB -> Resident Set Size memory change`,
-          rss: `${formatMemoryUsage(
-            memoryData.rss
-          )} -> Resident Set Size - total memory allocated`,
-          heapTotal: `${formatMemoryUsage(
-            memoryData.heapTotal
-          )} -> total size of the allocated heap`,
-          heapUsed: `${formatMemoryUsage(
-            memoryData.heapUsed
-          )} -> actual memory used during the execution`,
-          external: `${formatMemoryUsage(
-            memoryData.external
-          )} -> V8 external memory`,
-        }
-      : `RSS memory ${description}: ${formatMemoryUsage(memoryData.rss)}${
-          oldRSS === 0
-            ? ``
-            : `, changed by ` +
-              (Math.round(memoryData.rss / 1024 / 1024) - oldRSS).toString() +
-              ` MB`
-        }`;
-
-    console.log(memoryUsage);
-  }
-}
-
-async function collect() {
-  //await sleep(100);
-  if (isGC) {
-    const memoryData1 = process.memoryUsage();
-    if (global.gc === undefined) throw new Error("global.gc is undefined");
-    await global.gc();
-    const memoryData2 = process.memoryUsage();
-    if (memoryData1.rss !== memoryData2.rss) {
-      console.log(
-        "RSS memory changed after GC:",
-        Math.round((memoryData1.rss - memoryData2.rss) / 1024),
-        "kB"
-      );
-    }
-  }
-}

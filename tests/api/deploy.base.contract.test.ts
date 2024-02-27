@@ -13,10 +13,10 @@ import { MapContract } from "../../src/base/mapcontract";
 import { MapUpdate } from "../../src/base/update";
 import { baseContract, deployer as berkeleyDeployer } from "../../src/config";
 
-const useLocalBlockchain = false;
+const useLocalBlockchain = true;
 const ownerPublicKey = baseContract.ownerPrivateKey.toPublicKey();
 
-describe("Contract", () => {
+describe("Deploy Base Contract", () => {
   it(`should compile contract`, async () => {
     console.time("compiled");
     await MapUpdate.compile();

@@ -8,7 +8,7 @@ import {
 import { sleep } from "zkcloudworker";
 
 export async function fetchMinaAccount(publicKey: PublicKey) {
-  const timeout = 1000 * 60 * 5; // 5 minutes
+  const timeout = 1000 * 60 * 10; // 10 minutes
   const startTime = Date.now();
   let result = { account: undefined };
   while (Date.now() - startTime < timeout) {
@@ -32,7 +32,7 @@ export async function fetchMinaActions(
   fromActionState: Field,
   endActionState?: Field
 ) {
-  const timeout = 1000 * 60 * 60; // 1 hour
+  const timeout = 1000 * 60 * 600; // 10 hours
   const startTime = Date.now();
   while (Date.now() - startTime < timeout) {
     try {
