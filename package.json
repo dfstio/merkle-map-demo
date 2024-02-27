@@ -12,7 +12,8 @@
   "scripts": {
     "compile": "rm -rf dist && tsc",
     "build": "rm -rf dist && tsc && rm merkle-map-demo.zip && 7z a -tzip -r -stl -m0=Copy merkle-map-demo.zip dist package.json node_modules",
-    "test": "jest",
+    "test": "jest tests/*.test.ts",
+    "jest": "jest",
     "coverage": "jest --coverage",
     "api": "jest tests/api.test.ts",
     "reset": "jest tests/reset.test.ts",

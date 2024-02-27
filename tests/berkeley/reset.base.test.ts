@@ -6,19 +6,16 @@ import {
   initBlockchain,
   Memory,
 } from "zkcloudworker";
+import { Field, PublicKey, MerkleMap, Signature } from "o1js";
+import { MapContract } from "../../src/base/mapcontract";
+import { JWT, baseContract } from "../../src/config";
 import {
-  Field,
-  PublicKey,
-  checkZkappTransaction as o1js_checkZkappTransaction,
-  fetchAccount as o1js_fetchAccount,
-  MerkleMap,
-  Signature,
-} from "o1js";
-import { MapContract, MapElement } from "../src/mapcontract";
-import { JWT, contractAddress, ownerPrivateKey } from "../src/config";
+  checkMinaZkappTransaction,
+  fetchMinaAccount,
+} from "../../src/lib/fetch";
 
 describe("Merkle map demo reset", () => {
-  const publicKey = PublicKey.fromBase58(contractAddress);
+  const publicKey = PublicKey.fromBase58(baseContract.contractAddress);
   let calculateJobId = "";
   const api = new zkCloudWorker(JWT);
   let initialValue = Field(0);
@@ -28,7 +25,7 @@ describe("Merkle map demo reset", () => {
   let initialCount: Field = Field(0);
 
   it("should get initial value", async () => {
-    await fetchAccount(publicKey);
+    await fetchMinaAccount(publicKey);
     const zkApp = new MapContract(publicKey);
     const count: Field = zkApp.count.get();
     const root: Field = zkApp.root.get();
@@ -51,13 +48,16 @@ describe("Merkle map demo reset", () => {
       );
       return;
     }
-    const signature = Signature.create(ownerPrivateKey, [root, count]);
+    const signature = Signature.create(baseContract.ownerPrivateKey, [
+      root,
+      count,
+    ]);
     const tx = {
       root: root.toJSON(),
       count: count.toJSON(),
       signature: signature.toBase58(),
     };
-    const args = ["setRoot", contractAddress];
+    const args = ["setRoot", baseContract.contractAddress];
 
     const apiresult = await api.createJob({
       name: "nameservice",
@@ -94,7 +94,7 @@ describe("Merkle map demo reset", () => {
     let remainedTx = 1;
     while (remainedTx > 0) {
       await sleep(1000 * 30);
-      const result = await checkZkappTransaction(txHash);
+      const result = await checkMinaZkappTransaction(txHash);
       if (result.success) {
         console.log("reset tx included into block:", txHash);
         remainedTx--;
@@ -104,7 +104,7 @@ describe("Merkle map demo reset", () => {
   });
 
   it("should get final values", async () => {
-    await fetchAccount(publicKey);
+    await fetchMinaAccount(publicKey);
     const zkApp = new MapContract(publicKey);
     const count: Field = zkApp.count.get();
     const root: Field = zkApp.root.get();
@@ -113,33 +113,3 @@ describe("Merkle map demo reset", () => {
     initialValue = count;
   });
 });
-
-async function checkZkappTransaction(hash: string) {
-  try {
-    const result = await o1js_checkZkappTransaction(hash);
-    return result;
-  } catch (error) {
-    console.error("Error in checkZkappTransaction:", error);
-    return { success: false };
-  }
-}
-
-async function fetchAccount(publicKey: PublicKey) {
-  const timeout = 1000 * 60 * 5; // 5 minutes
-  const startTime = Date.now();
-  let result = { account: undefined };
-  while (Date.now() - startTime < timeout) {
-    try {
-      const result = await o1js_fetchAccount({
-        publicKey,
-      });
-      if (result.account !== undefined) return result;
-      console.log("Cannot fetch account", publicKey.toBase58(), result);
-    } catch (error) {
-      console.log("Error in fetchAccount:", error);
-    }
-    await sleep(1000 * 10);
-  }
-  console.log("Timeout in fetchAccount");
-  return result;
-}

@@ -14,35 +14,31 @@ import {
   Signature,
 } from "o1js";
 
-import { Storage } from "./storage";
-import { MapUpdateProof } from "./update";
+import { MultipleChoiceMapUpdateProof } from "./map";
 
 export const BATCH_SIZE = 3;
 
-export class MapElement extends Struct({
-  name: Field,
+export class Answer extends Struct({
+  commitment: Field,
   address: PublicKey,
   addressHash: Field, // Poseidon hash of address.toFields()
-  hash: Field, // Poseidon hash of [name, ...address.toFields()]
-  storage: Storage,
+  hash: Field, // Poseidon hash of [commitment, ...address.toFields()]
 }) {
   toFields(): Field[] {
     return [
-      this.name,
+      this.commitment,
       ...this.address.toFields(),
       this.addressHash,
       this.hash,
-      ...this.storage.toFields(),
     ];
   }
 
-  static fromFields(fields: Field[]): MapElement {
-    return new MapElement({
-      name: fields[0],
+  static fromFields(fields: Field[]): Answer {
+    return new Answer({
+      commitment: fields[0],
       address: PublicKey.fromFields(fields.slice(1, 3)),
       addressHash: fields[3],
       hash: fields[4],
-      storage: new Storage({ hashString: [fields[5], fields[6]] }),
     });
   }
 }
@@ -57,8 +53,8 @@ export class ReducerState extends Struct({
   }
 }
 
-export class MapContract extends SmartContract {
-  @state(Field) domain = State<Field>();
+export class MultipleChoiceQuestionsContract extends SmartContract {
+  @state(Field) questionsCommitment = State<Field>();
   @state(Field) root = State<Field>();
   @state(Field) count = State<Field>();
   @state(Field) actionState = State<Field>();
@@ -74,60 +70,34 @@ export class MapContract extends SmartContract {
   }
 
   reducer = Reducer({
-    actionType: MapElement,
+    actionType: Answer,
   });
 
   events = {
-    add: MapElement,
-    update: MapElement,
+    add: Answer,
     reduce: ReducerState,
     bulkUpdate: Field,
   };
 
-  @method add(
-    name: Field,
-    address: PublicKey,
-    storage: Storage,
-    signature: Signature
-  ) {
+  @method add(commitment: Field, address: PublicKey, signature: Signature) {
     const addressHash = Poseidon.hash(address.toFields());
-    const hash = Poseidon.hash([name, ...address.toFields()]);
-    const element = new MapElement({
-      name,
+    const hash = Poseidon.hash([commitment, ...address.toFields()]);
+    const answer = new Answer({
+      commitment,
       address,
       addressHash,
       hash,
-      storage,
     });
-    signature.verify(address, element.toFields()).assertEquals(true);
-    this.reducer.dispatch(element);
-    this.emitEvent("add", element);
-  }
-
-  @method update(
-    name: Field,
-    address: PublicKey,
-    storage: Storage,
-    signature: Signature
-  ) {
-    const addressHash = Poseidon.hash(address.toFields());
-    const hash = Poseidon.hash([name, ...address.toFields()]);
-    const element = new MapElement({
-      name,
-      address,
-      addressHash,
-      hash,
-      storage,
-    });
-    signature.verify(address, element.toFields()).assertEquals(true);
-    this.emitEvent("update", element);
+    signature.verify(address, answer.toFields()).assertEquals(true);
+    this.reducer.dispatch(answer);
+    this.emitEvent("add", answer);
   }
 
   @method reduce(
     startActionState: Field,
     endActionState: Field,
     reducerState: ReducerState,
-    proof: MapUpdateProof,
+    proof: MultipleChoiceMapUpdateProof,
     signature: Signature
   ) {
     const owner = this.owner.getAndRequireEquals();
@@ -155,7 +125,7 @@ export class MapContract extends SmartContract {
       this.reducer.reduce(
         pendingActions,
         ReducerState,
-        (state: ReducerState, action: MapElement) => {
+        (state: ReducerState, action: Answer) => {
           return new ReducerState({
             count: state.count.add(Field(1)),
             hash: state.hash.add(action.hash),
@@ -180,7 +150,10 @@ export class MapContract extends SmartContract {
     this.emitEvent("reduce", reducerState);
   }
 
-  @method bulkUpdate(proof: MapUpdateProof, signature: Signature) {
+  @method bulkUpdate(
+    proof: MultipleChoiceMapUpdateProof,
+    signature: Signature
+  ) {
     const owner = this.owner.getAndRequireEquals();
     signature.verify(owner, proof.publicInput.toFields()).assertEquals(true);
     proof.verify();

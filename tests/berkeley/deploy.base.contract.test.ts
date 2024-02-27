@@ -9,16 +9,12 @@ import {
   MerkleMap,
 } from "o1js";
 import { initBlockchain, fee, accountBalanceMina } from "zkcloudworker";
-import { MapContract } from "../src/mapcontract";
-import { MapUpdate } from "../src/update";
-import {
-  contractPrivateKey,
-  ownerPrivateKey,
-  deployer as berkeleyDeployer,
-} from "../src/config";
+import { MapContract } from "../../src/base/mapcontract";
+import { MapUpdate } from "../../src/base/update";
+import { baseContract, deployer as berkeleyDeployer } from "../../src/config";
 
 const useLocalBlockchain = false;
-const ownerPublicKey = ownerPrivateKey.toPublicKey();
+const ownerPublicKey = baseContract.ownerPrivateKey.toPublicKey();
 
 describe("Contract", () => {
   it(`should compile contract`, async () => {
@@ -39,7 +35,7 @@ describe("Contract", () => {
       deployer = berkeleyDeployer;
     }
     const sender = deployer.toPublicKey();
-    const privateKey = contractPrivateKey;
+    const privateKey = baseContract.contractPrivateKey;
     const publicKey = privateKey.toPublicKey();
     const zkApp = new MapContract(publicKey);
     console.log("zkApp address:", publicKey.toBase58());
