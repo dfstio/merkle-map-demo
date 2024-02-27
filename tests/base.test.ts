@@ -18,15 +18,15 @@ import {
   MapElement,
   ReducerState,
   BATCH_SIZE,
-} from "../src/mapcontract";
+} from "../src/base/mapcontract";
 import {
   MapUpdateProof,
   MapTransition,
   MapUpdate,
   MapUpdateData,
-} from "../src/update";
-import { Storage } from "../src/storage";
-import { emptyActionsHash, calculateActionsHash } from "../src/actions";
+} from "../src/base/update";
+import { Storage } from "../src/lib/storage";
+import { emptyActionsHash, calculateActionsHash } from "../src/lib/actions";
 import { sleep } from "zkcloudworker";
 
 const ELEMENTS_COUNT = 7;

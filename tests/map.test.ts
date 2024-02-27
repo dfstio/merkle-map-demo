@@ -8,8 +8,8 @@ import {
   Encoding,
   MerkleMap,
 } from "o1js";
-import { MapElement } from "../src/mapcontract";
-import { Storage } from "../src/storage";
+import { MapElement } from "../src/base/mapcontract";
+import { Storage } from "../src/lib/storage";
 
 const ELEMENTS_NUMBER = 1000;
 const elements: MapElement[] = [];

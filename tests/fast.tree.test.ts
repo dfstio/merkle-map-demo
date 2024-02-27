@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 import { Field, MerkleTree } from "o1js";
-import { FastMerkleTree, MerkleNode } from "../src/fast-merkle-tree";
+import { FastMerkleTree, MerkleNode } from "../src/lib/fast-merkle-tree";
 
 const ELEMENTS_NUMBER = 10000;
 const height = 20;
