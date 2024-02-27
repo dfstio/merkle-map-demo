@@ -14,10 +14,12 @@
     "build": "rm -rf dist && tsc && rm merkle-map-demo.zip && 7z a -tzip -r -stl -m0=Copy merkle-map-demo.zip dist package.json node_modules",
     "test": "jest tests/*.test.ts",
     "jest": "jest",
-    "coverage": "jest --coverage",
-    "api": "jest tests/api/api.base.test.ts",
-    "reset": "jest tests/api/reset.base.test.ts",
-    "gc": "node --expose-gc node_modules/jest/bin/jest.js tests/contract.test"
+    "coverage": "jest --coverage tests/*.test.ts",
+    "berkeley": "jest tests/berkeley/multiple-choice.test.ts",
+    "reset": "jest tests/berkeley/reset.mcq.test.ts",
+    "baseapi": "jest tests/api/api.base.test.ts",
+    "basereset": "jest tests/api/reset.base.test.ts",
+    "gc": "node --expose-gc node_modules/jest/bin/jest.js tests/base.test"
   },
   "dependencies": {
     "axios": "^1.6.7",

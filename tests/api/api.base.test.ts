@@ -12,10 +12,11 @@ https://github.com/o1-labs/o1js/issues/1426
 https://github.com/o1-labs/o1js/issues/1427
 
 Script should be run manually:
+BATCH_SIZE should be set to 256
 First, reset script should be run to reset the contract to the initial state:
-yarn reset
+yarn basereset
 Then, after the reset tx is included into the block, the main script should be run:
-yarn api 
+yarn baseapi 
 in case of archive node issues, it should be run again partially after the issues are resolved 
 (1-2 hours depending on the number of actions, see issues for details)
 by commenting some tests and running only the part of the script that is not executed yet.

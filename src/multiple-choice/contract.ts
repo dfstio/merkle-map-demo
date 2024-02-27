@@ -43,6 +43,27 @@ export class Answer extends Struct({
   }
 }
 
+export class AnswerData extends Struct({
+  commitment: Field,
+  address: PublicKey,
+  signature: Signature,
+}) {
+  toFields(): Field[] {
+    return [
+      this.commitment,
+      ...this.address.toFields(),
+      ...this.signature.toFields(),
+    ];
+  }
+  static fromFields(fields: Field[]): AnswerData {
+    return new AnswerData({
+      commitment: fields[0],
+      address: PublicKey.fromFields(fields.slice(1, 3)),
+      signature: Signature.fromFields(fields.slice(3)),
+    });
+  }
+}
+
 export class ReducerState extends Struct({
   count: Field,
   hash: Field,
@@ -79,7 +100,8 @@ export class MultipleChoiceQuestionsContract extends SmartContract {
     bulkUpdate: Field,
   };
 
-  @method add(commitment: Field, address: PublicKey, signature: Signature) {
+  @method add(answerData: AnswerData) {
+    const { commitment, address, signature } = answerData;
     const addressHash = Poseidon.hash(address.toFields());
     const hash = Poseidon.hash([commitment, ...address.toFields()]);
     const answer = new Answer({

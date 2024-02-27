@@ -1,5 +1,6 @@
 import { Field, Packed, Bool } from "o1js";
 import { hashWithPrefix, stringToFields } from "../lib/hash";
+import { AnswerData } from "./contract";
 
 export type MultipleChoiceQuestionType = "singleSelect" | "multiSelect";
 
@@ -17,12 +18,18 @@ export interface MultipleChoiceAnswer {
 
 export interface TestAnswer {
   answers: MultipleChoiceAnswer[]; // Array of answers for each question
+  questionsCommitment: Field;
 }
 
-export async function generateQuestions(
+export interface FullAnswer {
+  answer: TestAnswer;
+  data: AnswerData;
+}
+
+export function generateQuestions(
   numberOfQuestions: number,
   numberOfChoices: number
-) {
+): Question[] {
   const questions: Question[] = [];
   for (let i = 0; i < numberOfQuestions; i++) {
     const type = i % 2 === 0 ? "singleSelect" : "multiSelect";
@@ -40,15 +47,25 @@ export async function generateQuestions(
   return questions;
 }
 
-export async function generateAnswers(questions: Question[], valid: boolean) {
-  const answers: TestAnswer = { answers: [] };
-  for (const question of questions) {
-    const choices: boolean[] = [];
-    for (let i = 0; i < question.answers.length; i++) {
-      choices.push(valid ? i === 0 : i !== 0);
+export function generateAnswers(
+  questions: Question[],
+  questionsCommitment: Field,
+  quantity: number,
+  valid: boolean
+): TestAnswer[] {
+  const answers: TestAnswer[] = [];
+  for (let i = 0; i < quantity; i++) {
+    const answer: TestAnswer = { answers: [], questionsCommitment };
+    for (const question of questions) {
+      const choices: boolean[] = [];
+      for (let i = 0; i < question.answers.length; i++) {
+        choices.push(valid ? i === 0 : i !== 0);
+      }
+      answer.answers.push({ choices });
     }
-    answers.answers.push({ choices });
+    answers.push(answer);
   }
+
   return answers;
 }
 
@@ -97,14 +114,6 @@ export function calculateQuestionsCommitment(
     for (const rightAnswer of question.rightAnswers) {
       fields.push(rightAnswer ? Field(1) : Field(0));
     }
-    /* TODO: Wait for https://github.com/o1-labs/o1js/issues/1463
-    const boolRightAnswers = question.rightAnswers.map((answer) =>
-      answer ? Bool(true) : Bool(false)
-    );
-
-    const packedRightAnswers = PackedBool.pack(boolRightAnswers);
-    fields.push(...packedRightAnswers.toFields());
-    */
   }
   return hashWithPrefix(prefix, fields);
 }
@@ -118,24 +127,28 @@ export function calculateAnswersCommitment(
     for (const choice of answer.choices) {
       fields.push(choice ? Field(1) : Field(0));
     }
-    /* TODO: Wait for https://github.com/o1-labs/o1js/issues/1463
-    const packedRightAnswers = PackedBool.pack(
-      answer.choices.map((answer) => (answer ? Bool(true) : Bool(false)))
-    );
-    fields.push(...packedRightAnswers.toFields());
-    */
   }
   return hashWithPrefix(prefix, fields);
 }
 
 export function validateAnswers(
   questions: Question[],
+  prefixQuestions: string,
   testAnswer: TestAnswer,
   maxErrors: number
 ): boolean {
   if (questions.length !== testAnswer.answers.length) {
     return false;
   }
+  const questionsCommitment = calculateQuestionsCommitment(
+    questions,
+    prefixQuestions
+  );
+  if (
+    questionsCommitment.equals(testAnswer.questionsCommitment).toBoolean() ===
+    false
+  )
+    return false;
   let errors = 0;
   for (let i = 0; i < questions.length; i++) {
     if (questions[i].type === "singleSelect") {

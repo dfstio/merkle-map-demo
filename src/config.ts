@@ -6,6 +6,16 @@ interface ContractConfig {
   ownerPrivateKey: PrivateKey;
 }
 
+export const multipleChoiceQuestionsContract: ContractConfig = {
+  contractPrivateKey: PrivateKey.fromBase58(
+    "EKF9pZjrFNuEXDZyVQEFwL4WBdtRcEZMz37cxGf242QAvwSS4q5v"
+  ),
+  contractAddress: "B62qjGHgtjgz5Ka4Z8LfbbZnVi6TCKZ561cNMDfe6Ly9jHvfR5DaMCQ",
+  ownerPrivateKey: PrivateKey.fromBase58(
+    "EKEBt4ekTQEZQS1tdVDBEUAk1MXvBwBUDchZD4ZnpF3evuNsQv7N"
+  ),
+};
+
 export const baseContract: ContractConfig = {
   contractPrivateKey: PrivateKey.fromBase58(
     "EKEpSiV7GCqidsaXsnhUFEE1qHYLsNvpPqx6fWXfAPDrdPoNrE7f"
