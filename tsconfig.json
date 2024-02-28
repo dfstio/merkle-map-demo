@@ -11,8 +11,9 @@
     "composite": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "strictPropertyInitialization": false
+    "strictPropertyInitialization": false,
+    "resolveJsonModule": true
   },
-  "include": ["index.ts", "src/**/*.ts", "tests/**/*.ts"],
+  "include": ["index.ts", "src/**/*.ts", "tests/**/*.ts", "env.json"],
   "exclude": ["node_modules"]
 }

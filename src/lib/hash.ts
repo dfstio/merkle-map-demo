@@ -18,6 +18,10 @@ export function stringToFields(s: string): Field[] {
   return Encoding.stringToFields(s);
 }
 
+export function stringFromFields(fields: Field[]): string {
+  return Encoding.stringFromFields(fields);
+}
+
 export function calculateActionsHash(actions: string[][], actionState: Field) {
   let actionHash = fromJSON(actions).hash;
   return Actions.updateSequenceState(actionState, actionHash);

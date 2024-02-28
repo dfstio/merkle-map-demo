@@ -7,6 +7,7 @@ import {
   MerkleMap,
   Signature,
   VerificationKey,
+  PublicKey,
 } from "o1js";
 import {
   MultipleChoiceQuestionsContract,
@@ -27,60 +28,80 @@ import {
   validateQuestions,
   validateAnswers,
   FullAnswer,
+  Grade,
 } from "../../src/multiple-choice/questions";
 import { collect } from "../../src/lib/gc";
 import { Memory } from "../../src/lib/memory";
-import { multipleChoiceQuestionsContract, deployer } from "../../src/config";
+import {
+  multipleChoiceQuestionsContract,
+  deployer,
+  QUESTIONS_NUMBER,
+  CHOICES_NUMBER,
+  prefixQuestions,
+  prefixAnswers,
+} from "../../src/config";
 import {
   fetchMinaAccount,
   checkMinaZkappTransaction,
 } from "../../src/lib/fetch";
 import { initBlockchain, accountBalanceMina, fee, sleep } from "zkcloudworker";
+import { saveToIPFS, loadFromIPFS } from "../../src/lib/storage";
+import { loadFile } from "../../src/lib/files";
+import { stringFromFields, stringToFields } from "../../src/lib/hash";
+import { PINATA_JWT } from "../../env.json";
+import { Storage } from "../../src/lib/storage";
 
 const { ownerPrivateKey, contractAddress, contractPrivateKey } =
   multipleChoiceQuestionsContract;
 
-const USERS_COUNT = 5;
-const QUESTIONS_NUMBER = 10;
-const CHOICES_NUMBER = 5;
-const prefixQuestions = "questions";
-const prefixAnswers = "answers";
-
+const USERS_COUNT = 3;
+const sender = deployer.toPublicKey();
+const privateKey = contractPrivateKey;
+const publicKey = privateKey.toPublicKey();
+const zkApp = new MultipleChoiceQuestionsContract(publicKey);
+const userPrivateKeys: PrivateKey[] = [];
+const ownerPublicKey = ownerPrivateKey.toPublicKey();
+let questionsCommitment: Field | undefined = undefined;
+let questions: Question[] = [];
+let answers: FullAnswer[] = [];
+let grades: Grade[] = [];
+const map = new MerkleMap();
 let verificationKey: VerificationKey | undefined = undefined;
 
 describe("Multiple Choice Questions Contract", () => {
-  initBlockchain("berkeley");
-  const sender = deployer.toPublicKey();
-  const privateKey = contractPrivateKey;
-  const publicKey = privateKey.toPublicKey();
-  const zkApp = new MultipleChoiceQuestionsContract(publicKey);
-  const userPrivateKeys: PrivateKey[] = [];
-  const ownerPublicKey = ownerPrivateKey.toPublicKey();
-  let questionsCommitment: Field | undefined = undefined;
-  let questions: Question[] = [];
-  let answers: FullAnswer[] = [];
-  const map = new MerkleMap();
-
-  it(`should generate questions`, async () => {
-    console.time(
-      `prepared ${QUESTIONS_NUMBER} questions with ${CHOICES_NUMBER} choices`
+  it(`should load questions`, async () => {
+    initBlockchain("berkeley");
+    console.log("Loading questions...");
+    expect(contractAddress).toBeDefined();
+    if (contractAddress === undefined) return;
+    const data = await loadFile(contractAddress);
+    //console.log("loaded data", data);
+    expect(data).toBeDefined();
+    if (data === undefined) return;
+    const { questionsCommitment: commitment, questions: loadedQuestions } =
+      data;
+    expect(commitment).toBeDefined();
+    expect(loadedQuestions).toBeDefined();
+    if (commitment === undefined || loadedQuestions === undefined) return;
+    const fieldCommitment = Field.fromJSON(commitment);
+    expect(fieldCommitment).toBeInstanceOf(Field);
+    questionsCommitment = fieldCommitment;
+    //console.log("loaded questionsCommitment", questionsCommitment.toJSON());
+    const calculatedCommitment = calculateQuestionsCommitment(
+      loadedQuestions,
+      prefixQuestions
     );
-    questions = await generateQuestions(QUESTIONS_NUMBER, CHOICES_NUMBER);
-    console.timeEnd(
-      `prepared ${QUESTIONS_NUMBER} questions with ${CHOICES_NUMBER} choices`
-    );
+    expect(calculatedCommitment).toBeDefined();
+    expect(calculatedCommitment).toBeInstanceOf(Field);
+    expect(calculatedCommitment.toJSON()).toEqual(questionsCommitment.toJSON());
+    questions = loadedQuestions;
+    expect(questions.length).toBe(QUESTIONS_NUMBER);
   });
 
   it(`should validate questions`, async () => {
+    expect(questions.length).toBe(QUESTIONS_NUMBER);
     const checkQuestions = validateQuestions(questions);
     expect(checkQuestions).toBe(true);
-  });
-
-  it(`should calculate commitment for questions`, async () => {
-    const commitment = calculateQuestionsCommitment(questions, prefixQuestions);
-    expect(commitment).toBeDefined();
-    expect(commitment).toBeInstanceOf(Field);
-    questionsCommitment = commitment;
   });
 
   it(`should create users`, async () => {
@@ -91,6 +112,7 @@ describe("Multiple Choice Questions Contract", () => {
   });
 
   it(`should generate valid answers`, async () => {
+    //console.log("questionsCommitment", questionsCommitment?.toJSON());
     expect(questionsCommitment).toBeDefined();
     if (questionsCommitment === undefined) return;
     console.time(`prepared answers`);
@@ -132,6 +154,43 @@ describe("Multiple Choice Questions Contract", () => {
     }
   });
 
+  it(`should load database`, async () => {
+    await fetchMinaAccount(publicKey);
+    const storage = zkApp.storage.get();
+    if (
+      storage.hashString[0].toBigInt() === 0n &&
+      storage.hashString[1].toBigInt() === 0n
+    ) {
+      console.log("No data in the database");
+    } else {
+      const hash = stringFromFields(storage.hashString);
+      expect(hash).toBeDefined();
+      if (hash === undefined) return;
+      expect(hash.substring(0, 2)).toEqual("i:");
+      console.log("Loading data from IPFS:", hash.substring(2));
+      const data = await loadFromIPFS(hash.substring(2));
+      expect(data).toBeDefined();
+      if (data === undefined) return;
+      const { grades: loadedGrades, newGrades: loadedNewGrades } = data;
+      expect(loadedGrades).toBeDefined();
+      expect(loadedNewGrades).toBeDefined();
+      if (loadedGrades === undefined || loadedNewGrades === undefined) return;
+      grades = loadedGrades;
+    }
+  });
+
+  it(`should verify database`, async () => {
+    for (const grade of grades) {
+      const address = PublicKey.fromBase58(grade.address);
+      const key = Poseidon.hash(address.toFields());
+      const value = Field.fromJSON(grade.grade);
+      map.set(key, value);
+    }
+    const calculatedRoot = map.getRoot();
+    const root = zkApp.root.get();
+    expect(calculatedRoot.equals(root).toBoolean()).toBe(true);
+  });
+
   it(`should compile contracts`, async () => {
     console.log("Compiling contracts...");
     console.time("MultipleChoiceMapUpdate compiled");
@@ -149,12 +208,14 @@ describe("Multiple Choice Questions Contract", () => {
     expect(contractAddress).toBeDefined();
     expect(contractPrivateKey).toBeDefined();
     expect(contractPrivateKey.toPublicKey().toBase58()).toBe(contractAddress);
+    expect(PINATA_JWT).toBeDefined();
     expect(deployer).toBeDefined();
     if (
       ownerPrivateKey === undefined ||
       contractAddress === undefined ||
       contractPrivateKey === undefined ||
-      deployer === undefined
+      deployer === undefined ||
+      PINATA_JWT === undefined
     )
       return;
     await fetchMinaAccount(sender);
@@ -167,22 +228,10 @@ describe("Multiple Choice Questions Contract", () => {
     const root: Field = zkApp.root.get();
     console.log("initial count:", count.toJSON());
     console.log("initial root:", root.toJSON());
-    const map = new MerkleMap();
-    const emptyRoot = map.getRoot();
-    const emptyCount = Field(0);
-    if (
-      root.equals(emptyRoot).toBoolean() === false ||
-      count.equals(emptyCount).toBoolean() === false
-    ) {
-      console.log(
-        "Root and count are not empty. Please reset the state before running the test"
-      );
-      return;
-    }
     console.time("bulk update");
     expect(verificationKey).toBeDefined();
     if (verificationKey === undefined) return;
-    const proof: MultipleChoiceMapUpdateProof = await calculateProof(
+    const { proof, grades: newGrades } = await calculateProof(
       answers,
       questions,
       prefixQuestions,
@@ -194,11 +243,19 @@ describe("Multiple Choice Questions Contract", () => {
       ownerPrivateKey,
       proof.publicInput.toFields()
     );
+    for (const grade of newGrades) grades.push(grade);
+    const hash = await saveToIPFS({ grades, newGrades }, PINATA_JWT);
+    expect(hash).toBeDefined();
+    if (hash === undefined) return;
+    const fields = stringToFields(`i:${hash}`);
+    const storage: Storage = new Storage({
+      hashString: [fields[0], fields[1]],
+    });
 
     const tx = await Mina.transaction(
       { sender, fee: await fee(), memo: "bulk update" },
       () => {
-        zkApp.bulkUpdate(proof, signature);
+        zkApp.bulkUpdate(proof, signature, ownerPublicKey, storage);
       }
     );
     await collect();
@@ -222,5 +279,10 @@ describe("Multiple Choice Questions Contract", () => {
       }
     }
     console.timeEnd("bulk update tx included into block");
+    await fetchMinaAccount(publicKey);
+    const count1: Field = zkApp.count.get();
+    const root1: Field = zkApp.root.get();
+    console.log("final count:", count1.toJSON());
+    console.log("final root:", root1.toJSON());
   });
 });
