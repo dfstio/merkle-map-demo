@@ -21,7 +21,7 @@ yarn
 
 ### Configuration
 
-For test on the Berkeley that write to IPFS (only 'yarn berkeley' test), env.json file should be created using env.example.json as example.
+For test on the Berkeley that write to IPFS (only `yarn berkeley` test), env.json file should be created using env.example.json as example.
 
 PINATA_JWT key can be received for free on [pinata.cloud ](https://app.pinata.cloud/developers/api-keys), Developers | API Keys menu
 
