@@ -15,6 +15,7 @@ import {
 } from "o1js";
 
 import { MultipleChoiceMapUpdateProof } from "./map";
+import { Storage } from "../lib/storage";
 
 export const BATCH_SIZE = 3;
 
@@ -79,7 +80,8 @@ export class MultipleChoiceQuestionsContract extends SmartContract {
   @state(Field) root = State<Field>();
   @state(Field) count = State<Field>();
   @state(Field) actionState = State<Field>();
-  @state(PublicKey) owner = State<PublicKey>();
+  @state(Field) owner = State<Field>();
+  @state(Storage) storage = State<Storage>();
   @state(Bool) isSynced = State<Bool>();
 
   deploy(args: DeployArgs) {
@@ -98,6 +100,7 @@ export class MultipleChoiceQuestionsContract extends SmartContract {
     add: Answer,
     reduce: ReducerState,
     bulkUpdate: Field,
+    storage: Storage,
   };
 
   @method add(answerData: AnswerData) {
@@ -120,10 +123,15 @@ export class MultipleChoiceQuestionsContract extends SmartContract {
     endActionState: Field,
     reducerState: ReducerState,
     proof: MultipleChoiceMapUpdateProof,
-    signature: Signature
+    signature: Signature,
+    ownerPublicKey: PublicKey,
+    storage: Storage
   ) {
     const owner = this.owner.getAndRequireEquals();
-    signature.verify(owner, proof.publicInput.toFields()).assertEquals(true);
+    Poseidon.hash(ownerPublicKey.toFields()).assertEquals(owner);
+    signature
+      .verify(ownerPublicKey, proof.publicInput.toFields())
+      .assertEquals(true);
     proof.verify();
     proof.publicInput.oldRoot.assertEquals(this.root.getAndRequireEquals());
     proof.publicInput.hash.assertEquals(reducerState.hash);
@@ -169,34 +177,54 @@ export class MultipleChoiceQuestionsContract extends SmartContract {
     this.count.set(count.add(newReducerState.count));
     this.actionState.set(newActionState);
     this.root.set(proof.publicInput.newRoot);
+    this.storage.set(storage);
+    this.emitEvent("storage", storage);
     this.emitEvent("reduce", reducerState);
   }
 
   @method bulkUpdate(
     proof: MultipleChoiceMapUpdateProof,
-    signature: Signature
+    signature: Signature,
+    ownerPublicKey: PublicKey,
+    storage: Storage
   ) {
     const owner = this.owner.getAndRequireEquals();
-    signature.verify(owner, proof.publicInput.toFields()).assertEquals(true);
+    Poseidon.hash(ownerPublicKey.toFields()).assertEquals(owner);
+    signature
+      .verify(ownerPublicKey, proof.publicInput.toFields())
+      .assertEquals(true);
     proof.verify();
     proof.publicInput.oldRoot.assertEquals(this.root.getAndRequireEquals());
 
     const count = this.count.getAndRequireEquals();
     this.count.set(count.add(proof.publicInput.count));
     this.root.set(proof.publicInput.newRoot);
+    this.storage.set(storage);
+    this.emitEvent("storage", storage);
     this.emitEvent("bulkUpdate", proof.publicInput.count);
   }
 
-  @method setOwner(newOwner: PublicKey, signature: Signature) {
+  @method setOwner(
+    newOwner: PublicKey,
+    signature: Signature,
+    ownerPublicKey: PublicKey
+  ) {
     const owner = this.owner.getAndRequireEquals();
-    signature.verify(owner, newOwner.toFields()).assertEquals(true);
-    this.owner.set(newOwner);
+    Poseidon.hash(ownerPublicKey.toFields()).assertEquals(owner);
+    signature.verify(ownerPublicKey, newOwner.toFields()).assertEquals(true);
+    this.owner.set(Poseidon.hash(newOwner.toFields()));
   }
 
   // TODO: remove after debugging
-  @method setRoot(root: Field, count: Field, signature: Signature) {
+  @method setRoot(
+    root: Field,
+    count: Field,
+    signature: Signature,
+    ownerPublicKey: PublicKey
+  ) {
     const owner = this.owner.getAndRequireEquals();
-    signature.verify(owner, [root, count]).assertEquals(true);
+    Poseidon.hash(ownerPublicKey.toFields()).assertEquals(owner);
+    signature.verify(ownerPublicKey, [root, count]).assertEquals(true);
     this.root.set(root);
     this.count.set(count);
   }

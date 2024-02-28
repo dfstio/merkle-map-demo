@@ -6,7 +6,13 @@ import {
   MultipleChoiceMapUpdateData,
   MultipleChoiceMapUpdateProof,
 } from "./map";
-import { Question, validateAnswers, TestAnswer, FullAnswer } from "./questions";
+import {
+  Question,
+  validateAnswers,
+  TestAnswer,
+  FullAnswer,
+  Grade,
+} from "./questions";
 
 import { collect } from "../lib/gc";
 import { Memory } from "../lib/memory";
@@ -18,7 +24,7 @@ export async function calculateProof(
   map: MerkleMap,
   verificationKey: VerificationKey | undefined,
   verbose: boolean = false
-): Promise<MultipleChoiceMapUpdateProof> {
+): Promise<{ proof: MultipleChoiceMapUpdateProof; grades: Grade[] }> {
   console.log(`Calculating proofs for ${answers.length} answers...`);
   if (verificationKey === undefined)
     throw new Error("Verification key is not defined");
@@ -34,6 +40,7 @@ export async function calculateProof(
   }
 
   let updates: AnswerState[] = [];
+  const grades: Grade[] = [];
 
   for (let i = 0; i < answers.length; i++) {
     const oldRoot = map.getRoot();
@@ -50,6 +57,10 @@ export async function calculateProof(
         witness: map.getWitness(key),
       });
       updates.push({ isAnswerAccepted: true, update, oldRoot });
+      grades.push({
+        address: answers[i].data.address.toBase58(),
+        grade: Field(1).toJSON(),
+      });
     } else {
       updates.push({ isAnswerAccepted: false, oldRoot });
     }
@@ -115,7 +126,7 @@ export async function calculateProof(
     throw new Error("Proof verification error");
   }
 
-  return proof;
+  return { proof, grades };
 }
 
 export async function prepareProofData(

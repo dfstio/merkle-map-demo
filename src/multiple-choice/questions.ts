@@ -26,6 +26,11 @@ export interface FullAnswer {
   data: AnswerData;
 }
 
+export interface Grade {
+  address: string;
+  grade: string;
+}
+
 export function generateQuestions(
   numberOfQuestions: number,
   numberOfChoices: number

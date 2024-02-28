@@ -37,6 +37,7 @@ import {
 } from "../src/multiple-choice/questions";
 import { collect } from "../src/lib/gc";
 import { Memory } from "../src/lib/memory";
+import { Storage } from "../src/lib/storage";
 
 const USERS_COUNT = 10;
 const BULK_UPDATE_COUNT = Math.floor(USERS_COUNT / 2);
@@ -63,6 +64,7 @@ describe("Multiple Choice Questions Contract", () => {
   let questions: Question[] = [];
   let answers: FullAnswer[] = [];
   const map = new MerkleMap();
+  const storage: Storage = new Storage({ hashString: [Field(0), Field(0)] });
 
   it(`should generate questions`, async () => {
     console.time(
@@ -201,7 +203,7 @@ describe("Multiple Choice Questions Contract", () => {
       zkApp.actionState.set(Reducer.initialActionState);
       zkApp.isSynced.set(Bool(true));
       zkApp.count.set(Field(0));
-      zkApp.owner.set(ownerPublicKey);
+      zkApp.owner.set(Poseidon.hash(ownerPublicKey.toFields()));
     });
     await tx.sign([deployer, privateKey]).send();
     Memory.info(`should deploy the contract`);
@@ -295,7 +297,7 @@ describe("Multiple Choice Questions Contract", () => {
 
         expect(verificationKey).toBeDefined();
         if (verificationKey === undefined) return;
-        const proof: MultipleChoiceMapUpdateProof = await calculateProof(
+        const { proof } = await calculateProof(
           actionsAnswers,
           questions,
           prefixQuestions,
@@ -314,7 +316,9 @@ describe("Multiple Choice Questions Contract", () => {
             endActionState,
             reducerState,
             proof,
-            signature
+            signature,
+            ownerPublicKey,
+            storage
           );
         });
         await collect();
@@ -343,7 +347,7 @@ describe("Multiple Choice Questions Contract", () => {
 
     expect(verificationKey).toBeDefined();
     if (verificationKey === undefined) return;
-    const proof: MultipleChoiceMapUpdateProof = await calculateProof(
+    const { proof } = await calculateProof(
       bulkAnswers,
       questions,
       prefixQuestions,
@@ -357,7 +361,7 @@ describe("Multiple Choice Questions Contract", () => {
     );
 
     const tx = await Mina.transaction({ sender }, () => {
-      zkApp.bulkUpdate(proof, signature);
+      zkApp.bulkUpdate(proof, signature, ownerPublicKey, storage);
     });
     await collect();
     await tx.prove();

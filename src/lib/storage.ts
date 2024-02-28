@@ -1,5 +1,6 @@
 export { Storage };
 import { Struct, Field } from "o1js";
+import axios from "axios";
 
 /**
  * Storage is the hash of the IPFS or Arweave storage where the metadata is written
@@ -15,5 +16,49 @@ class Storage extends Struct({
   }
   toFields(): Field[] {
     return this.hashString;
+  }
+}
+
+export async function saveToIPFS(
+  data: any,
+  PinataJWT: string | undefined
+): Promise<string | undefined> {
+  try {
+    const str = JSON.stringify(data, null, 2);
+    const auth = "Bearer " + PinataJWT ?? "";
+
+    const config = {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: auth,
+      },
+    };
+
+    if (auth === "Bearer ")
+      //for running tests
+      return `QmTosaezLecDB7bAoUoXcrJzeBavHNZyPbPff1QHWw8xus`;
+
+    const res = await axios.post(
+      "https://api.pinata.cloud/pinning/pinJSONToIPFS",
+      str,
+      config
+    );
+
+    console.log("saveToIPFS result:", res.data);
+    return res.data.IpfsHash;
+  } catch (error: any) {
+    console.error("saveToIPFS:", error);
+    return undefined;
+  }
+}
+
+export async function loadFromIPFS(hash: string): Promise<any | undefined> {
+  try {
+    const url = "https://gateway.pinata.cloud/ipfs/" + hash;
+    const data = (await axios.get(url)).data;
+    return data;
+  } catch (error: any) {
+    console.error("loadFromIPFS:", error);
+    return undefined;
   }
 }

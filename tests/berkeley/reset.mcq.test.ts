@@ -87,7 +87,7 @@ describe("Reset Multiple Choice Questions Contract", () => {
     const tx = await Mina.transaction(
       { sender, fee: await fee(), memo: "reset" },
       () => {
-        zkApp.setRoot(root, count, signature);
+        zkApp.setRoot(root, count, signature, ownerPublicKey);
       }
     );
     await tx.prove();
