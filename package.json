@@ -17,6 +17,7 @@
     "coverage": "jest --coverage tests/*.test.ts",
     "berkeley": "jest tests/berkeley/multiple-choice.test.ts",
     "deploy": "jest tests/berkeley/deploy.mcq.contract.test.ts",
+    "read": "jest tests/berkeley/read.test.ts",
     "reset": "jest tests/berkeley/reset.mcq.test.ts",
     "baseapi": "jest tests/api/api.base.test.ts",
     "basereset": "jest tests/api/reset.base.test.ts",
