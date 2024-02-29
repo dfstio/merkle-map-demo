@@ -47,24 +47,35 @@ Test coverage on local blockchain is 79 percent, for contracts is 97%. Details a
 ----------------------|---------|----------|---------|---------|-----------------------------
 File                  | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
 ----------------------|---------|----------|---------|---------|-----------------------------
-All files             |   79.05 |    51.68 |    80.7 |   78.87 |
- base                 |   78.81 |    55.55 |      80 |   78.37 |
+All files             |   78.99 |    52.17 |   81.45 |   78.91 |
+ src                  |     100 |      100 |     100 |     100 |
+  config.ts           |     100 |      100 |     100 |     100 |
+ src/base             |   78.81 |    55.55 |      80 |   78.37 |
   mapcontract.ts      |     100 |      100 |     100 |     100 |
   proof.ts            |   53.33 |    55.55 |   28.57 |   51.85 | 20,100,110-189
   update.ts           |   96.96 |      100 |    90.9 |   96.66 | 21
- lib                  |   72.43 |    46.15 |   80.43 |    72.6 |
+ src/lib              |   70.75 |    48.27 |   84.31 |      71 |
   fast-merkle-map.ts  |   80.95 |      100 |      75 |      80 | 54-65
   fast-merkle-tree.ts |   77.55 |       50 |   81.81 |   77.77 | 37-56,65
+  fetch.ts            |   45.71 |    33.33 |   66.66 |   45.45 | 20-27,35-54,62-63
+  files.ts            |   38.09 |      100 |      50 |   38.09 | 8-22,33-34
   gc.ts               |   36.36 |       25 |     100 |      40 | 12-17
-  hash.ts             |    92.5 |        0 |   89.47 |   94.59 | 22,89
+  hash.ts             |      95 |        0 |   94.73 |   97.29 | 89
   memory.ts           |    90.9 |       60 |   66.66 |      90 | 5
-  storage.ts          |   29.16 |        0 |      50 |   29.16 | 26-51,56-62
- multiple-choice      |   82.66 |    53.33 |   81.57 |   82.54 |
+  storage.ts          |   79.16 |    33.33 |     100 |   79.16 | 39,50-51,65-66
+ src/multiple-choice  |   82.66 |    53.33 |   81.57 |   82.54 |
   contract.ts         |   98.86 |      100 |    92.3 |   98.76 | 53
   map.ts              |   97.05 |      100 |    90.9 |   97.05 | 26
   proof.ts            |   53.84 |       35 |   28.57 |    52.5 | 30,65,126,138-220
   questions.ts        |    90.8 |       68 |     100 |      90 | 80,83,92,95,108,146,156,168
+ src/rollup           |   93.93 |      100 |      60 |   93.93 |
+  blocks.ts           |     100 |      100 |     100 |     100 |
+  proof.ts            |   84.61 |      100 |   33.33 |   84.61 | 14-24
 ----------------------|---------|----------|---------|---------|-----------------------------
+Test Suites: 10 passed, 10 total
+Tests:       50 passed, 50 total
+Snapshots:   0 total
+Time:        545.298 s
 ```
 
 ### Test results
@@ -261,7 +272,7 @@ Time:        942.285 s
 Ran all test suites matching /tests\/berkeley\/multiple-choice.test.ts/i.
 ```
 
-Note: receiving errors during tests on Berkeley is normal, the tests are able to recover automatically from Berkeley node errors. See src/lib/fetch.ts for details.
+Note: receiving errors during tests on Berkeley is normal, the tests are able to recover automatically from Berkeley node errors except for tx send errors. See src/lib/fetch.ts for details.
 
 The tests on the tests/issues folder should not pass, they illustrate the issues raised on o1js github (the list of issues is below).
 
