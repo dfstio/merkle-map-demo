@@ -54,7 +54,11 @@ export async function saveToIPFS(
 
 export async function loadFromIPFS(hash: string): Promise<any | undefined> {
   try {
-    const url = "https://gateway.pinata.cloud/ipfs/" + hash;
+    const url =
+      "https://salmon-effective-amphibian-898.mypinata.cloud/ipfs/" +
+      hash +
+      "?pinataGatewayToken=gFuDmY7m1Pa5XzZ3bL1TjPPvO4Ojz6tL-VGIdweN1fUa5oSFZXce3y9mL8y1nSSU";
+    //"https://gateway.pinata.cloud/ipfs/" + hash;
     const data = (await axios.get(url)).data;
     return data;
   } catch (error: any) {
