@@ -7,6 +7,7 @@ import {
   PrivateKey,
   Encoding,
   MerkleMap,
+  MerkleTree,
 } from "o1js";
 import { MapElement } from "../src/base/mapcontract";
 import { Storage } from "../src/lib/storage";
