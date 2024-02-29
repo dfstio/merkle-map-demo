@@ -14,7 +14,7 @@
     "build": "rm -rf dist && tsc && rm merkle-map-demo.zip && 7z a -tzip -r -stl -m0=Copy merkle-map-demo.zip dist package.json node_modules",
     "test": "jest tests/*.test.ts",
     "jest": "jest",
-    "coverage": "jest --coverage tests/*.test.ts",
+    "coverage": "jest --coverage tests/*.test.ts tests/berkeley/read.test.ts tests/berkeley/multiple-choice.test.ts",
     "berkeley": "jest tests/berkeley/multiple-choice.test.ts",
     "deploy": "jest tests/berkeley/deploy.mcq.contract.test.ts",
     "read": "jest tests/berkeley/read.test.ts",

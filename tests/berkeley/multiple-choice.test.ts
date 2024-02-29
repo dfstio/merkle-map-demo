@@ -279,6 +279,7 @@ describe("Multiple Choice Questions Contract", () => {
       }
     }
     console.timeEnd("bulk update tx included into block");
+    await sleep(1000 * 10);
     await fetchMinaAccount(publicKey);
     const count1: Field = zkApp.count.get();
     const root1: Field = zkApp.root.get();
